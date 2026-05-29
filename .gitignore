@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+wheels/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# uv
+.python-version
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Type checking
+.pyre/
+.pytype/
+
+# Secrets and local config
+.env
+.env.local
+*.key
+secrets/
+
+# ML artifacts
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.ckpt
+checkpoints/
+runs/
+wandb/
+mlruns/
+data/
+datasets/
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+
+# Local research notebooks and notes (not part of the published package).
+/phase0/
+/phase1/
+/phase2/
+

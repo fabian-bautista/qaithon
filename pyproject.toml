@@ -1,0 +1,260 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qaithon"
+version = "0.0.1"
+description = "The bridge between generative AI and quantum-photonic computing."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [
+    { name = "Fabián Bautista", email = "fabbagar83@gmail.com" },
+]
+keywords = [
+    "quantum-computing",
+    "photonic-computing",
+    "llm",
+    "machine-learning",
+    "pytorch",
+    "huggingface",
+    "transformers",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "torch>=2.2",
+    "numpy>=1.24",
+    "typing-extensions>=4.10; python_version<'3.12'",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+huggingface = [
+    "transformers>=4.40",
+    "accelerate>=0.30",
+    "safetensors>=0.4",
+    "huggingface_hub>=0.23",
+]
+pennylane = [
+    "pennylane>=0.45,<0.47",
+    "pennylane-qiskit>=0.45,<0.47",
+]
+quandela = [
+    "perceval-quandela>=1.2.0,<2.0",
+    "merlinquantum>=0.2.3,<0.4",
+]
+deepquantum = [
+    "deepquantum>=4.5.0,<5.0",
+]
+all = [
+    "qaithon[huggingface,pennylane,quandela,deepquantum]",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-xdist>=3.6",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+    "ipykernel>=6.29",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+]
+observability = [
+    "opentelemetry-api>=1.25",
+    "opentelemetry-sdk>=1.25",
+    "opentelemetry-exporter-otlp>=1.25",
+]
+vllm = [
+    "vllm>=0.5",
+]
+
+[project.scripts]
+qaithon = "qaithon.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/qaithon/qaithon"
+Documentation = "https://github.com/qaithon/qaithon"
+Repository = "https://github.com/qaithon/qaithon"
+Issues = "https://github.com/qaithon/qaithon/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["qaithon"]
+
+[tool.hatch.build.targets.sdist]
+# Positive include-list so the source distribution only ever contains
+# user-facing assets (code, tests, public docs, README, license).
+include = [
+    "qaithon/",
+    "tests/",
+    "docs/en/",
+    "docs/es/",
+    "docs/cookbook/",
+    "README.md",
+    "README.es.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff — linter + formatter (replaces black, isort, flake8, pyupgrade, etc.)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["phase0/notebooks", "phase0/notes", ".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear (likely bugs)
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "TCH",  # flake8-type-checking (move type-only imports to TYPE_CHECKING)
+    "RUF",  # ruff-specific rules
+    "PL",   # pylint subset
+    "D",    # pydocstyle (docstrings)
+    "ANN",  # flake8-annotations (type hints required)
+    "ARG",  # unused arguments
+    "PT",   # pytest style
+    "RET",  # return value style
+    "PIE",  # misc
+    "PERF", # perflint
+]
+ignore = [
+    "D100",   # missing docstring in public module — we use __init__.py descriptions
+    "D104",   # missing docstring in public package
+    "D107",   # __init__ docstring (we document at class level)
+    "D203",   # incompatible with D211 — pick blank-line-before-class
+    "D213",   # incompatible with D212 — pick first-line summary on same line
+    "PLR0913", # too many arguments — common in ML code
+    "ANN401", # disallow Any — sometimes necessary for tensor types
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "ANN", "PLR2004", "S101"]  # tests can skip docstrings, type hints, magic numbers
+"phase0/**" = ["D", "ANN", "PLR2004"]
+"qaithon/__init__.py" = ["F401"]  # re-exports
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# Mypy — strict type checking
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unreachable = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pennylane.*",
+    "strawberryfields.*",
+    "perceval.*",
+    "merlin.*",
+    "deepquantum.*",
+    "qiskit.*",
+    "qiskit_ibm_runtime.*",
+    "transformers.*",
+    "accelerate.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "phase0.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",                          # show summary of all results
+    "--strict-markers",             # fail on unknown markers
+    "--strict-config",
+    "--showlocals",
+    "--tb=short",
+]
+filterwarnings = [
+    "error",                                                       # treat warnings as errors by default
+    "ignore::DeprecationWarning:pkg_resources",                     # SF noise
+    "ignore::DeprecationWarning:strawberryfields",
+    "ignore:.*pkg_resources.*:UserWarning",
+]
+markers = [
+    "slow: tests that take more than a few seconds",
+    "integration: tests that require external dependencies (HF, real backends)",
+    "gpu: tests that require GPU/MPS",
+    "needs_huggingface: requires the [huggingface] extra installed",
+    "needs_pennylane: requires the [pennylane] extra installed",
+    "needs_quandela: requires the [quandela] extra installed",
+    "needs_deepquantum: requires the [deepquantum] extra installed",
+]
+
+[tool.coverage.run]
+source = ["qaithon"]
+branch = true
+omit = [
+    "qaithon/_version.py",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "@overload",
+]
+show_missing = true
+skip_covered = false
+precision = 1
