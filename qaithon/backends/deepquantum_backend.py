@@ -83,7 +83,10 @@ class DeepQuantumBackend(Backend):
         weight: torch.Tensor,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return F.linear(x, weight, bias)
+        # GENUINE compute via the real quantum kernel (qubit circuit), not F.linear.
+        from qaithon.kernels import quantum_linear
+
+        return quantum_linear(x, weight, bias)
 
 
 # Conditional registration: only registers if deepquantum is importable.

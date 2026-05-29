@@ -28,14 +28,15 @@ import importlib.util
 import numpy as np
 import torch
 
-from qaithon._logging import get_logger
+from qaithon.exceptions import IncompatibleHardwareError
 
-__all__ = ["photonic_linear", "quantum_linear", "PHOTONIC_MAX_DIM"]
-
-logger = get_logger(__name__)
+__all__ = ["photonic_linear", "quantum_linear", "PHOTONIC_MAX_DIM", "QUANTUM_MAX_QUBITS"]
 
 # Perceval SLOS caps Fock-state size at 256 modes; the dilation uses 2·dim modes.
 PHOTONIC_MAX_DIM = 128
+# Statevector sim stores a dense 2^q × 2^q unitary; q=13 → dim 4096 ≈ 1 GB.
+# Tunable: bigger machines raise it. Covers GPT-2 (768→q11), Qwen-7B (3584→q13).
+QUANTUM_MAX_QUBITS = 13
 
 
 def _dilate(W: np.ndarray) -> tuple[np.ndarray, float, int]:
@@ -59,13 +60,6 @@ def _dilate(W: np.ndarray) -> tuple[np.ndarray, float, int]:
 def _prep(x: torch.Tensor, W: torch.Tensor) -> tuple[np.ndarray, np.ndarray, int, int]:
     Wn = W.detach().cpu().numpy().astype(float)
     out_f, in_f = Wn.shape
-    if max(out_f, in_f) > PHOTONIC_MAX_DIM:
-        logger.warning(
-            "Genuine kernel on dim %d exceeds the photonic simulator's reach "
-            "(%d); this is for the quantum path or will be slow/limited.",
-            max(out_f, in_f),
-            PHOTONIC_MAX_DIM,
-        )
     return Wn, x.detach().cpu().numpy().astype(float), out_f, in_f
 
 
@@ -79,6 +73,18 @@ def photonic_linear(
     from perceval.simulators import Simulator
 
     Wn, xn, out_f, in_f = _prep(x, weight)
+    if max(out_f, in_f) > PHOTONIC_MAX_DIM:
+        raise IncompatibleHardwareError(
+            reason=(
+                f"Photonic kernel: layer dim {max(out_f, in_f)} needs "
+                f"{2 * max(out_f, in_f)} modes, beyond the SLOS simulator's 256-mode "
+                f"reach (dim {PHOTONIC_MAX_DIM})."
+            ),
+            recommendations=[
+                f"Use a layer with dim ≤ {PHOTONIC_MAX_DIM} for the photonic path.",
+                "Or use the quantum path (scales further in simulation).",
+            ],
+        )
     U, scale, n = _dilate(Wn)
     circuit = pcvl.Unitary(pcvl.Matrix(U))
     sim = Simulator(pcvl.BackendFactory.get_backend("SLOS"))
@@ -124,9 +130,21 @@ def quantum_linear(
     from qiskit.quantum_info import Statevector
 
     Wn, xn, out_f, in_f = _prep(x, weight)
-    U, scale, n = _dilate(Wn)
-    dim = 2 * n
+    dim = 2 * max(out_f, in_f)
     q = max(1, int(np.ceil(np.log2(dim))))
+    if q > QUANTUM_MAX_QUBITS:
+        raise IncompatibleHardwareError(
+            reason=(
+                f"Quantum kernel: layer dim {max(out_f, in_f)} needs {q} qubits "
+                f"(dense {2**q}×{2**q} unitary), beyond this machine's budget of "
+                f"{QUANTUM_MAX_QUBITS} qubits (~{2**(QUANTUM_MAX_QUBITS-1)} dim)."
+            ),
+            recommendations=[
+                f"Use a layer with dim ≤ {2**(QUANTUM_MAX_QUBITS - 1)} on this machine.",
+                "Or raise QUANTUM_MAX_QUBITS on a bigger machine (each +1 qubit = 4× RAM).",
+            ],
+        )
+    U, scale, _ = _dilate(Wn)
     pad = 2**q
     Upad = np.eye(pad, dtype=complex)
     Upad[:dim, :dim] = U

@@ -32,7 +32,6 @@ import time
 from typing import TYPE_CHECKING
 
 import torch
-import torch.nn.functional as F  # noqa: N812
 
 from qaithon._logging import get_logger
 from qaithon.backends.base import Backend, BackendProfile, register_backend
@@ -151,23 +150,13 @@ class PercevalPhotonicBackend(Backend):
         weight: torch.Tensor,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        classical = F.linear(x, weight, bias)
-        if self._noise_strength == 0.0:
-            return classical
+        # GENUINE photonic compute: the matmul is evaluated by a real
+        # linear-optical circuit (Perceval SLOS), not F.linear. Bounded to the
+        # simulator's mode reach (dim ≤ 128); raises IncompatibleHardwareError
+        # above that instead of silently faking it.
+        from qaithon.kernels import photonic_linear
 
-        n_modes = min(self._max_modes, max(2, math.ceil(math.log2(max(2, x.shape[-1])))))
-        try:
-            noise_scale = self._measure_noise_scale(n_modes)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Perceval execution failed (%s: %s); falling back to classical noise.",
-                type(exc).__name__,
-                exc,
-            )
-            noise_scale = self._noise_strength
-        scale = noise_scale * classical.std().clamp(min=1e-6)
-        noise = torch.randn_like(classical) * scale
-        return classical + noise.detach()
+        return photonic_linear(x, weight, bias)
 
     def _measure_noise_scale(self, n_modes: int) -> float:
         """Run one Perceval circuit, return the noise scale derived from photon counts."""

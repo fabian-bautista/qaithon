@@ -203,7 +203,10 @@ class AutoBackendSelector:
         if self._explicit_candidates is not None:
             names = list(self._explicit_candidates)
         else:
-            names = list(list_backends())
+            # Exclude the classical reference 'mock' from auto-selection: it must
+            # be requested explicitly (e.g. to compare against quantum/photonic
+            # results), never silently chosen as if it were real acceleration.
+            names = [n for n in list_backends() if n != "mock"]
         return self._materialize(names)
 
     def _materialize(self, names: list[str]) -> list[Backend]:

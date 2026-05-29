@@ -34,7 +34,6 @@ import importlib.util
 from typing import TYPE_CHECKING
 
 import torch
-import torch.nn.functional as F  # noqa: N812
 
 from qaithon._logging import get_logger
 from qaithon.backends.base import Backend, BackendProfile, register_backend
@@ -149,19 +148,13 @@ class QuandelaSimBackend(Backend):
 
         See :meth:`qaithon.backends.base.Backend.matmul` for the contract.
         """
+        # GENUINE photonic compute via the real linear-optical kernel (Perceval),
+        # not F.linear. Bounded to the simulator's mode reach (dim ≤ 128).
+        from qaithon.kernels import photonic_linear
+
         if self._normalize_inputs:
             x = torch.sigmoid(x)
-        out = F.linear(x, weight, bias)
-        if self._noise_std > 0:
-            noise = torch.randn(
-                out.shape,
-                generator=self._generator,
-                dtype=out.dtype,
-                device=out.device,
-            )
-            # Scale noise by the per-output-element std for realism.
-            out = out + self._noise_std * noise * (out.std().clamp(min=1e-6))
-        return out
+        return photonic_linear(x, weight, bias)
 
 
 register_backend("quandela.sim", QuandelaSimBackend, overwrite=True)

@@ -232,37 +232,13 @@ class IBMAerBackend(Backend):
 
         See module docstring for the design trade-offs.
         """
-        classical = F.linear(x, weight, bias)
+        # GENUINE quantum compute: the matmul runs as a real qubit circuit
+        # (amplitude encoding + unitary dilation, Qiskit statevector), not
+        # F.linear. Bounded by qubit budget; raises IncompatibleHardwareError
+        # above it instead of silently faking it.
+        from qaithon.kernels import quantum_linear
 
-        if self._noise_strength == 0.0:
-            return classical
-
-        n_qubits = min(self._max_qubits, max(1, math.ceil(math.log2(max(2, x.shape[-1])))))
-
-        if x.shape[-1] > 2**self._max_qubits:
-            logger.debug(
-                "Input dimension %d exceeds Aer cap of %d; using classical path with noise.",
-                x.shape[-1],
-                2**self._max_qubits,
-            )
-            return self._classical_with_noise(classical)
-
-        # Real Aer execution for noise calibration. Done once per forward
-        # call (not once per row) so the cost stays bounded.
-        try:
-            noise_scale = self._measure_noise_scale(n_qubits)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "AerSimulator execution failed (%s: %s); falling back to "
-                "classical-with-noise path.",
-                type(exc).__name__,
-                exc,
-            )
-            noise_scale = self._noise_strength
-
-        # Apply the measured noise scale to the classical output.
-        noise = torch.randn_like(classical) * noise_scale * classical.std().clamp(min=1e-6)
-        return classical + noise.detach()  # detach so noise does not contribute to gradients
+        return quantum_linear(x, weight, bias)
 
     def _measure_noise_scale(self, n_qubits: int) -> float:
         """Run one small calibration circuit on Aer; return measured noise scale."""

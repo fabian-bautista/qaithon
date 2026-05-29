@@ -122,7 +122,9 @@ class PennyLaneSimBackend(Backend):
         weight: torch.Tensor,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return F.linear(x, weight, bias)
+        from qaithon.kernels import quantum_linear
+
+        return quantum_linear(x, weight, bias)
 
 
 class IBMQuantumSimBackend(Backend):
@@ -160,7 +162,9 @@ class IBMQuantumSimBackend(Backend):
         weight: torch.Tensor,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return F.linear(x, weight, bias)
+        from qaithon.kernels import quantum_linear
+
+        return quantum_linear(x, weight, bias)
 
 
 class AWSBraketSimBackend(Backend):
@@ -201,7 +205,9 @@ class AWSBraketSimBackend(Backend):
         weight: torch.Tensor,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return F.linear(x, weight, bias)
+        from qaithon.kernels import quantum_linear
+
+        return quantum_linear(x, weight, bias)
 
 
 # Auto-register all three. Selector handles availability filtering.
