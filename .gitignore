@@ -1,3 +1,6 @@
+# Research / test logs (local bitácora, not versioned)
+logs.md
+
 # Python
 __pycache__/
 *.py[cod]
