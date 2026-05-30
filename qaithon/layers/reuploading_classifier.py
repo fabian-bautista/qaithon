@@ -70,6 +70,7 @@ class ReuploadingClassifier(nn.Module):
         n_qubits: int = 5,
         layers: int = 6,
         device: str = "default.qubit",
+        **device_kwargs,
     ) -> None:
         super().__init__()
         if not _pennylane_available():
@@ -87,7 +88,9 @@ class ReuploadingClassifier(nn.Module):
 
         import pennylane as qml
 
-        dev = qml.device(device, wires=n_qubits)
+        # device_kwargs forwards hardware specifics (e.g. backend="...") so the same
+        # class targets a real QPU: device="qiskit.remote", backend="ibm_marrakesh".
+        dev = qml.device(device, wires=n_qubits, **device_kwargs)
         n, depth, n_feat = n_qubits, layers, in_features
         diff = "backprop" if device == "default.qubit" else "parameter-shift"
 

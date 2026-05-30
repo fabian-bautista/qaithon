@@ -61,6 +61,7 @@ class QuantumLayer(nn.Module):
         target: str = "IBM Heron",
         on_hardware: bool = False,
         device: str = "default.qubit",
+        **device_kwargs,
     ) -> None:
         super().__init__()
         if not _pennylane_available():
@@ -83,7 +84,9 @@ class QuantumLayer(nn.Module):
 
         import pennylane as qml
 
-        dev = qml.device(device, wires=self.n_qubits)
+        # device_kwargs forwards hardware specifics (e.g. backend="...") so the same
+        # class targets a real QPU: device="qiskit.remote", backend="ibm_marrakesh".
+        dev = qml.device(device, wires=self.n_qubits, **device_kwargs)
         n_qubits = self.n_qubits
 
         @qml.qnode(dev, interface="torch", diff_method="backprop")

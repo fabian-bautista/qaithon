@@ -80,8 +80,9 @@ The raw numbers carry ~7% noise, yet every flower was classified correctly — a
 
 ### ⚙️ The algorithm matters more than the qubit count
 
-Same 10-class handwritten **Digits**, same **5 qubits**, on real IBM hardware —
-only the engine changed:
+**The task:** classify handwritten digits **0–9** (scikit-learn's `load_digits`,
+8×8 images, reduced with PCA) into 10 classes — all at **5 qubits on the real IBM
+QPU `ibm_marrakesh`**. We compared two *engines* for the model's compute:
 
 ```mermaid
 xychart-beta
@@ -93,11 +94,19 @@ xychart-beta
 
 | engine (5 qubits, Digits 0–9) | gates | accuracy on real HW |
 |---|:---:|:---:|
-| dense matmul (deep circuit) | ~5,880 | 20% _(≈ chance)_ |
-| shallow re-uploading VQC — `qaithon.ReuploadingClassifier` | ~230 | **~80%** ✅ |
-| classical baseline | — | ~95% |
+| dense matmul (forces a classical weight matrix through the QPU) | ~5,880 | 20% _(≈ chance)_ |
+| shallow re-uploading VQC — `qaithon.ReuploadingClassifier` (quantum-native) | ~230 | **~80%** ✅ |
+| classical baseline (same classifier on a CPU) | — | ~95% |
 
-> A deep dense matmul drowns in noise; a **shallow, NISQ-native circuit** keeps
+What ran in each row:
+- **Dense matmul** — embeds the weight matrix in one big dense circuit (~5,880
+  gates). The noise destroys it → 20% (random is 10%). Software mitigation could
+  *not* rescue it (still ~20% — the circuit is simply too deep).
+- **Re-uploading VQC** — a *quantum-native* shallow circuit (~230 gates) that
+  encodes the data and is trained as a classifier. It survives the noise → ~80%.
+- **Classical** — the reference, run on a normal CPU.
+
+> A deep dense matmul drowns in noise; a **shallow, NISQ-native algorithm** keeps
 > ~80% on the same qubits. The engine, not the qubit count, is the binding choice.
 
 ### 🔬 Genuine matmul — photonic vs quantum, both on real hardware

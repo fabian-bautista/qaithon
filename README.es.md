@@ -80,8 +80,9 @@ decisión `argmax` sobrevive aunque la aritmética tiemble.
 
 ### ⚙️ El algoritmo importa más que el número de qubits
 
-Mismos dígitos manuscritos de 10 clases, mismos **5 qubits**, en hardware real de
-IBM — solo cambió el motor:
+**La tarea:** clasificar dígitos manuscritos **0–9** (el `load_digits` de
+scikit-learn, imágenes 8×8, reducidas con PCA) en 10 clases — todo a **5 qubits en
+la QPU real de IBM `ibm_marrakesh`**. Comparamos dos *motores* para el cómputo del modelo:
 
 ```mermaid
 xychart-beta
@@ -93,11 +94,19 @@ xychart-beta
 
 | motor (5 qubits, Digits 0–9) | compuertas | exactitud en HW real |
 |---|:---:|:---:|
-| matmul denso (circuito profundo) | ~5.880 | 20% _(≈ azar)_ |
-| VQC re-uploading superficial — `qaithon.ReuploadingClassifier` | ~230 | **~80%** ✅ |
-| línea base clásica | — | ~95% |
+| matmul denso (mete una matriz de pesos clásica en la QPU) | ~5.880 | 20% _(≈ azar)_ |
+| VQC re-uploading superficial — `qaithon.ReuploadingClassifier` (cuántico-nativo) | ~230 | **~80%** ✅ |
+| línea base clásica (mismo clasificador en CPU) | — | ~95% |
 
-> Un matmul denso profundo se ahoga en ruido; un **circuito superficial NISQ-nativo**
+Qué corrió en cada fila:
+- **Matmul denso** — embebe la matriz de pesos en un circuito denso enorme (~5.880
+  compuertas). El ruido lo destruye → 20% (el azar es 10%). La mitigación por
+  software **no** pudo rescatarlo (seguía en ~20% — el circuito es demasiado profundo).
+- **VQC re-uploading** — un circuito *cuántico-nativo* superficial (~230 compuertas)
+  que codifica los datos y se entrena como clasificador. Sobrevive al ruido → ~80%.
+- **Clásico** — la referencia, en una CPU normal.
+
+> Un matmul denso profundo se ahoga en ruido; un **algoritmo superficial NISQ-nativo**
 > mantiene ~80% en los mismos qubits. El motor, no el número de qubits, es la decisión.
 
 ### 🔬 Matmul genuino — fotónica vs cuántica, ambas en hardware real
