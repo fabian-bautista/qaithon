@@ -236,8 +236,22 @@ La razón de que siga pequeño es **opuesta** para cada tecnología:
 | TuringQ | DeepQuantum | multi | `deepquantum` | — | ✅ |
 
 Capas genuinas entrenables: `qaithon.PhotonicLayer`, `qaithon.QuantumLayer`,
-`qaithon.ReuploadingClassifier`. Tres modos en los backends reales: `profile`
-(gratis), `calibrate` (telemetría real), `execute` (matmul genuino en la QPU).
+`qaithon.ReuploadingClassifier` (el clasificador cuántico-nativo detrás del
+resultado de Digits a 5 qubits). Tres modos en los backends reales: `profile`
+(gratis), `calibrate` (telemetría real), `execute` (matmul genuino en la QPU —
+IBM, Quandela, AWS SV1/IonQ).
+
+**Mirá qué hizo una corrida real.** Tras `mode="execute"`, cada backend registra
+la telemetría de la corrida — qué devolvió y cuánto cómputo costó:
+
+```python
+be = IBMHeronBackend(mode="execute", mitigation=True, shots=2048)
+y = be.matmul(x, weight)
+print(be.last_execute)
+# {'device': 'ibm_marrakesh', 'n_qubits': 3, 'n_gates': 290, 'shots': 2048,
+#  'fidelity': 0.967, 'latency_s': 6.6, 'mitigation': True}
+print(be.last_circuit_latency_us)   # tiempo del último circuito real
+```
 
 ---
 

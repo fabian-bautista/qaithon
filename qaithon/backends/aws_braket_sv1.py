@@ -177,12 +177,17 @@ class AWSBraketSV1Backend(RealHardwareBackendBase):
 
         device = self._get_device()
         t0 = time.perf_counter()
-        y = genuine_qubit_matmul(
+        y, info = genuine_qubit_matmul(
             x, weight,
             lambda full, q, shots: braket_run_probs(device, full, q, shots),
             bias, shots=self._shots,
         )
         self._last_circuit_latency_us = (time.perf_counter() - t0) * 1e6
+        self.last_execute = {
+            "device": self._device_arn,
+            **info,
+            "latency_s": self._last_circuit_latency_us / 1e6,
+        }
         return y
 
 

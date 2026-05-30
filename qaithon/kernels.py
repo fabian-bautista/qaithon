@@ -223,6 +223,7 @@ def genuine_qubit_matmul(
 
     flat = xn.reshape(-1, in_f)
     out = np.zeros((flat.shape[0], out_f))
+    fids: list = []
     for r, xv in enumerate(flat):
         amp = np.zeros(pad)
         amp[:in_f] = xv
@@ -232,12 +233,22 @@ def genuine_qubit_matmul(
         amp = amp / nrm
         full = upad @ _unitary_first_col(amp)   # prep (|0>→amp) then dilation
         probs = np.asarray(run_probs(full, q, shots), dtype=float)
-        ideal = full[:, 0]                        # = upad @ amp
-        out[r] = np.sign(ideal[:out_f].real) * np.sqrt(probs[:out_f]) * scale * nrm
+        ideal_amp = full[:, 0]                    # = upad @ amp
+        ideal_probs = np.abs(ideal_amp) ** 2
+        # Classical (Bhattacharyya) fidelity: measured vs ideal distribution.
+        fids.append(float(np.sum(np.sqrt(probs * ideal_probs)) ** 2))
+        out[r] = np.sign(ideal_amp[:out_f].real) * np.sqrt(probs[:out_f]) * scale * nrm
 
     res = torch.from_numpy(out).to(device=x.device, dtype=x.dtype).reshape(
         *x.shape[:-1], out_f
     )
     if bias is not None:
         res = res + bias.detach().to(device=x.device, dtype=x.dtype)
-    return res
+    info = {
+        "n_qubits": q,
+        "n_rows": int(flat.shape[0]),
+        "shots": int(shots),
+        "fidelity": float(np.mean(fids)) if fids else 0.0,
+        "fidelity_per_row": fids,
+    }
+    return res, info

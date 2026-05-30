@@ -277,6 +277,21 @@ y = photonic.matmul(x, weight)        # photonic.last_execute → modes, fidelit
 `mitigation=True` (IBM) adds higher transpiler optimization + dynamical decoupling
 + measurement twirling. `execute` mode consumes real quota / credits.
 
+**Run telemetry.** After any `execute` call, `backend.last_execute` is a dict with
+what the run returned and how much compute it took — consistent across IBM,
+Quandela and AWS (SV1/IonQ):
+
+```python
+be.last_execute
+# {'device': 'ibm_marrakesh', 'n_qubits': 3, 'n_gates': 290, 'shots': 2048,
+#  'fidelity': 0.967, 'latency_s': 6.6, ...}   # photonic reports 'modes' instead of n_gates
+be.last_circuit_latency_us   # wall-clock latency of the last real circuit
+```
+
+`fidelity` is the measured-vs-ideal distribution fidelity; `fidelity_per_row` has
+the per-input value. (`aws.braket.quera` is analog — `execute` raises
+`IncompatibleHardwareError`, not a silent fallback.)
+
 ---
 
 ## Backend interface (advanced)
