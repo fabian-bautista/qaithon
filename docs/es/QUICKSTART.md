@@ -1,29 +1,33 @@
 # Inicio rápido (Español)
 
-Cinco minutos desde `pip install` hasta tu primer modelo HuggingFace compilado.
+Cinco minutos desde `pip install` hasta correr tu primer transformer **tiny** de
+forma genuina.
 
 ## 1. Instalar
 
 ```bash
-pip install qaithon[huggingface]
+pip install qaithon[huggingface,pennylane]
 ```
 
-## 2. Compilar cualquier modelo de HuggingFace
+## 2. Correr un modelo tiny de forma genuina
 
 ```python
 import qaithon
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained("gpt2")
-model = AutoModelForCausalLM.from_pretrained("gpt2")
+tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+model = AutoModelForCausalLM.from_pretrained("roneneldan/TinyStories-1M")
 
-model = qaithon.compile(model)
+model = qaithon.compile(model, backends=("pennylane.sim",))  # cuántico genuino
 print(model.qaithon_report.pretty())
 ```
 
-Eso es todo. El modelo ahora rutea sus proyecciones lineales a través del
-selector de backends de Qaithon. Usalo como cualquier modelo de PyTorch /
-HuggingFace.
+Eso es todo. Las capas lineales del modelo ahora corren en circuitos cuánticos
+reales (en simulación). Usalo como cualquier modelo de PyTorch / HuggingFace.
+
+> Solo los transformers **tiny** corren genuinos. GPT-2 y más grandes compilan,
+> pero emular sus capas necesita mucho más que un laptop (simular cuántica es
+> exponencial; un emulador de 45–50 qubits necesita una supercomputadora).
 
 ```python
 inputs = tokenizer("Hola mundo", return_tensors="pt")

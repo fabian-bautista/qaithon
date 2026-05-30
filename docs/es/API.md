@@ -96,8 +96,9 @@ Recorre `model` y produce presupuestos qubit + profundidad por capa
 
 ### `qaithon.estimate_qubits_from_config(*, hidden_size, n_layers, n_heads=1, intermediate_size=None, vocab_size=0, model_class="FromConfig") -> QubitReport`
 
-Estima sin instanciar el modelo. Maneja GPT-3.5 / Llama-405B sin tocar
-la RAM.
+Estima desde una config sin instanciar el modelo (cero RAM). Funciona a cualquier
+tamaño — pasale una config clase 405B y te muestra el conteo de qubits imposible
+que necesitaría hoy. Solo análisis; no corre el modelo.
 
 ```python
 report = qaithon.estimate_qubits_from_config(

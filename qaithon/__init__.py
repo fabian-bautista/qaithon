@@ -89,6 +89,7 @@ from qaithon import (  # noqa: F401
 # Genuine, trainable quantum / photonic layers (differentiable).
 from qaithon.layers.photonic_layer import PhotonicLayer
 from qaithon.layers.quantum_layer import QuantumLayer
+from qaithon.layers.reuploading_classifier import ReuploadingClassifier
 
 __version__ = "0.0.1"
 
@@ -133,6 +134,7 @@ __all__ = [
     # Genuine, trainable quantum / photonic layers.
     "PhotonicLayer",
     "QuantumLayer",
+    "ReuploadingClassifier",
     # Sub-packages.
     "benchmarks",
     "cache",

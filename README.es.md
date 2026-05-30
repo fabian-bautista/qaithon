@@ -1,24 +1,30 @@
-# Qaithon
+<div align="center">
 
-Corré partes de un LLM de HuggingFace con **algoritmos cuánticos y fotónicos
-genuinos** — en simuladores hoy, en QPUs reales cuando se abran — sin reescribir
-el modelo. Un paso pequeño, honesto y reproducible en la frontera IA × cuántica × fotónica.
+# ⚛️ Qaithon 💡
 
-[English](README.md) · [Documentación](docs/es/README.md) · [Recetario](docs/es/COOKBOOK.md) · [Configuración](docs/es/CONFIGURATION.md)
+### Corré transformers pequeños con **computación cuántica y fotónica genuina**
 
-![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Tests](https://img.shields.io/badge/tests-253%20passing-brightgreen.svg)
-![Status](https://img.shields.io/badge/status-pre--alpha-orange.svg)
+Qaithon conecta PyTorch / HuggingFace con algoritmos cuánticos y fotónicos reales
+— validado en **dos QPUs físicas**, muy por debajo de la escala de los LLMs de hoy.
+Un paso honesto y reproducible en la frontera IA × cuántica × fotónica.
+
+![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Tests](https://img.shields.io/badge/tests-253%20passing-brightgreen)
+![Status](https://img.shields.io/badge/status-pre--alpha-orange)
+![Hardware](https://img.shields.io/badge/corri%C3%B3%20en-IBM%20Heron%20%2B%20Quandela%20Belenos-8A2BE2)
+
+**[English](README.md) · [Español](README.es.md)**
+
+</div>
 
 ---
 
-## Qué hace
+## ✨ Qué es
 
-Escribís código PyTorch / HuggingFace normal. Qaithon recorre el modelo,
-reemplaza las capas `nn.Linear` / Conv1D por versiones cuyos matmuls los
-computa un **algoritmo cuántico o fotónico genuino**, y te devuelve el mismo
-`nn.Module` que pasaste.
+Escribís código PyTorch / HuggingFace normal. `qaithon.compile(model)` recorre la
+red, reemplaza las capas lineales sustituibles por versiones cuyos matmuls corren
+con un **algoritmo cuántico o fotónico genuino**, y te devuelve el mismo `nn.Module`.
 
 ```python
 import qaithon
@@ -26,242 +32,271 @@ from transformers import AutoModelForCausalLM
 
 model = AutoModelForCausalLM.from_pretrained("roneneldan/TinyStories-1M")
 model = qaithon.compile(model, backends=("pennylane.sim",))  # cuántico genuino
-
 outputs = model.generate(input_ids, max_new_tokens=50)
 ```
 
-Los matmuls corren el algoritmo real (Perceval/MerLin fotónica,
-Qiskit/PennyLane qubits) — **no** matemática clásica con etiqueta cuántica.
-Hoy se ejecutan en **simuladores locales**; el mismo código apunta a una QPU
-real cuando se abra el acceso. Funciona a **escala pequeña** — el hardware
-cuántico/fotónico es genuinamente diminuto hoy, así que esto es primero un
-instrumento de investigación. Mirá [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)
-para ver hasta dónde llega la tecnología, con números medidos — incluido un
-**modelo real preentrenado generando texto coherente en un circuito cuántico genuino**.
+Los matmuls corren el **circuito real** (Perceval/MerLin fotónica, Qiskit/PennyLane
+qubits) — no matemática clásica con etiqueta cuántica. Solo los transformers
+**tiny** corren genuinos hoy; el *por qué* es física, explicado abajo — con números medidos.
 
-## Qué obtenés
+## 🔭 Cómo funciona
 
-- `qaithon.compile(model)` drop-in. Sin reescribir el modelo.
-- **Cómputo genuino** — matmuls computados por algoritmos cuánticos/fotónicos
-  reales, validados exactos contra el resultado clásico (no fingidos con ruido).
-- Multi-backend: Quandela fotónico (Perceval/MerLin), IBM/PennyLane/DeepQuantum
-  cuántico, más `mock` (la referencia clásica explícita). Conectores a hardware
-  real IBM/Quandela/AWS (experimental).
-- Auto-selección de un backend genuino por capa (objetivo: speed/energy/balanced).
-- Capas fotónicas y cuánticas **entrenables** (`PhotonicLayer`, `QuantumLayer`).
-- Estimación de presupuesto de qubits/modos + validación — te dice qué
-  necesitaría *cualquier* modelo (incluso a escala GPT-3) en una QPU real. El
-  análisis es gratis e instantáneo.
-- Lab de toy/micro transformers: armar, entrenar y generar de punta a punta.
-- Glosario embebido: `qaithon.explain("fidelity", 0.987)`; integración con HF Hub.
-- Límites honestos y medidos por tecnología: [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md).
+```mermaid
+flowchart LR
+    HF["🤗 Modelo<br/>HuggingFace"] --> C["qaithon.compile(model)"]
+    C --> S{"selector de<br/>backend por capa"}
+    S --> Q["⚛️ Circuito cuántico<br/>Qiskit / PennyLane"]
+    S --> P["💡 Interferómetro fotónico<br/>Perceval / MerLin"]
+    S --> X["fallback clásico<br/>(muy grande para HW)"]
+    Q --> O["✅ mismo nn.Module,<br/>ahora cómputo genuino"]
+    P --> O
+    X --> O
+```
 
-## Soporte de hardware
+---
 
-Hoy, **el cómputo genuino corre en los simuladores locales** (el algoritmo real,
-exacto). La columna "hardware real" significa que existe un conector, pero las
-corridas físicas son diminutas y gateadas — mirá [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)
-y el [roadmap](docs/en/ROADMAP.md) para ver qué corre de verdad en una QPU hoy.
+## 📊 Resultados — medidos en hardware real
 
-| Vendor | Dispositivo | Tipo | Backend | Hardware real | Simulador local |
-|---|---|---|---|---|---|
-| IBM | Heron (156 qubits) | Superconductor | `ibm.heron` | sí | `ibm.aer` |
-| IBM | Aer | Simulador | `ibm.aer` | n/a | sí (ideal + realista) |
-| Quandela | Belenos (12 modos) | Fotónico | `quandela.belenos` | experimental | `quandela.perceval` |
-| Quandela | Perceval SLOS | Sim fotónico | `quandela.perceval` | n/a | sí |
-| Quandela | MerLin | Fotónico (autograd) | `quandela.merlin` | n/a | sí |
-| AWS Braket | SV1 | Simulador | `aws.braket.sv1` | n/a | sí |
-| AWS Braket | QuEra Aquila | Átomo neutro | `aws.braket.quera` | sí | n/a (analógico) |
-| AWS Braket | IonQ Forte | Ion atrapado | `aws.braket.ionq` | sí | vía SV1 |
-| Xanadu | PennyLane | Varios | `pennylane.sim` | vía plugins | sí |
-| TuringQ | DeepQuantum | Multi | `deepquantum` | n/a | sí |
+Los kernels genuinos de Qaithon corrieron en **dos QPUs físicas**: la Heron
+superconductora de IBM y la Belenos fotónica de Quandela. Cada número está medido,
+y es reproducible desde `scripts/`.
 
-## Números medidos
+### 🧠 Una red neuronal clasificó en una computadora cuántica real
 
-El kernel genuino computa el matmul **de forma exacta** en simulación — el
-circuito *es* la cuenta, así que reproduce el resultado clásico con precisión
-de máquina:
+La inferencia de un clasificador lineal corrió en IBM Heron (`ibm_marrakesh`, 3 qubits):
 
-| Backend | Tipo | Cómputo | Fidelidad vs clásico (sim) |
-|---|---|---|---:|
-| `quandela.perceval` / `quandela.sim` / `quandela.merlin` | fotónico | genuino (Perceval/MerLin) | 1.0000 |
-| `ibm.aer` / `pennylane.sim` / `deepquantum` | cuántico | genuino (Qiskit/PennyLane) | 1.0000 |
-| `mock` | referencia clásica | `F.linear` | 1.0000 |
+<div align="center">
 
-La energía / latencia por backend vienen de perfiles de costo declarados. La
-pérdida de fidelidad **no** la produce el simulador exacto — solo aparece en
-hardware físico (pérdida óptica, decoherencia), que es justo el punto de correr ahí.
+| métrica | resultado |
+|---|:---:|
+| Exactitud en **hardware cuántico físico** (Iris) | **100%** (21/21) 🎯 |
+| Exactitud clásica | 100% |
+| Fidelidad de distribución (medida vs ideal) | 0.932 |
 
-**Highlight — un modelo real en un circuito cuántico genuino:** el preentrenado
-**TinyStories-1M** generó texto coherente ("...una niña llamada Lily a la que le
-gustaba jugar al sol...") con sus 48 capas lineales computadas por circuitos
-cuánticos genuinos — salida **idéntica** al clásico (error 1e-6).
+</div>
 
-Resultados completos, límites por tecnología (medidos en un laptop) y la
-explicación en lenguaje simple de *por qué* es pequeño están en
-**[`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)**.
+Los números crudos cargan ~7% de ruido y aun así cada flor se clasificó bien — la
+decisión `argmax` sobrevive aunque la aritmética tiemble.
 
-> Las corridas en hardware físico son diminutas y gateadas hoy (un solo circuito
-> chico, no un modelo completo). Ver el [roadmap](docs/en/ROADMAP.md) — cuando se
-> abra el hardware corregido de errores, el mismo código apunta a él.
+### ⚙️ El algoritmo importa más que el número de qubits
 
-## Instalación
+Mismos dígitos manuscritos de 10 clases, mismos **5 qubits**, en hardware real de
+IBM — solo cambió el motor:
+
+```mermaid
+xychart-beta
+    title "Exactitud Digits 0-9 en computadora cuantica real (5 qubits)"
+    x-axis ["matmul denso", "VQC L=3", "VQC L=6", "clasico"]
+    y-axis "Exactitud (%)" 0 --> 100
+    bar [20, 81, 79, 95]
+```
+
+| motor (5 qubits, Digits 0–9) | compuertas | exactitud en HW real |
+|---|:---:|:---:|
+| matmul denso (circuito profundo) | ~5.880 | 20% _(≈ azar)_ |
+| VQC re-uploading superficial — `qaithon.ReuploadingClassifier` | ~230 | **~80%** ✅ |
+| línea base clásica | — | ~95% |
+
+> Un matmul denso profundo se ahoga en ruido; un **circuito superficial NISQ-nativo**
+> mantiene ~80% en los mismos qubits. El motor, no el número de qubits, es la decisión.
+
+### 🔬 Matmul genuino — fotónica vs cuántica, ambas en hardware real
+
+Fidelidad del resultado medido vs el ideal, a medida que crece la matriz:
+
+```mermaid
+xychart-beta
+    title "Cuantica (IBM Heron): la fidelidad colapsa al crecer el circuito denso"
+    x-axis [2, 4, 8, 16, 32]
+    y-axis "fidelidad (%)" 40 --> 100
+    line [99.8, 96.7, 70.5, 62.5, 50.8]
+```
+
+```mermaid
+xychart-beta
+    title "Fotonica (Quandela Belenos): se degrada con gracia, tope 12 modos (dim 6)"
+    x-axis [2, 4, 6]
+    y-axis "fidelidad (%)" 40 --> 100
+    line [99.8, 97.7, 95.3]
+```
+
+<div align="center">
+
+| dim de matriz | Cuántica · IBM Heron | Fotónica · Quandela Belenos |
+|:---:|:---:|:---:|
+| 2 | 0.998 | 0.998 |
+| 4 | 0.967 | **0.977** |
+| 6 | — | 0.953 |
+| 8 | 0.705 | — _(necesita >12 modos)_ |
+
+</div>
+
+La fotónica **iguala o supera** a la cuántica a escala baja y se degrada *con
+gracia*; la cuántica tiene más margen de tamaño pero el **ruido** la colapsa más
+rápido. **Límites opuestos — medidos, no afirmados.**
+
+### 🛡️ Mitigación de errores por software
+
+`mitigation=True` (mejor layout + dynamical decoupling + measurement twirling)
+*rescata un circuito al borde*, pero no mueve el muro:
+
+| tarea | qubits | sin | con mitigación |
+|---|:---:|:---:|:---:|
+| Iris (8 features) | 4 | 71.4% | **85.7%** ✅ |
+| Digits (10 clases) | 5 | 20% | 20% _(muy profundo — gana el ruido)_ |
+
+### 📝 Un modelo de lenguaje real en circuitos cuánticos genuinos (simulador)
+
+El preentrenado **TinyStories-1M** generó texto coherente — *"…una niña llamada
+Lily a la que le gustaba jugar al sol…"* — con sus **48 capas lineales** computadas
+por circuitos de qubits genuinos. Salida **idéntica** al clásico (error 1e-6,
+argmax 100%). En un simulador de laptop, totalmente reproducible.
+
+---
+
+## 🧠 ¿Por qué solo modelos pequeños?
+
+Dos muros duros — **física, no ingeniería**:
+
+#### 1. Simular cuántica es *exponencial* — cada qubit duplica la memoria
+
+<div align="center">
+
+| qubits | números (2ⁿ) | RAM del simulador |
+|:---:|:---:|:---:|
+| 10 | 1.024 | kilobytes |
+| 20 | ~1 millón | ~16 MB |
+| **30** | ~1.000 millones | **~16 GB — llena un laptop** |
+| 40 | ~1 billón | ~16 TB — un clúster |
+| **45–50** | ~10¹⁵ | **una supercomputadora** |
+
+</div>
+
+Así que en una máquina normal solo podés correr genuinamente circuitos **pequeños**
+— transformers tiny como TinyStories-1M. Una capa a escala GPT-2 ya necesita más
+que un laptop; los LLMs reales quedan muy lejos.
+
+#### 2. El hardware cuántico real es *ruidoso*
+
+Hoy solo ~**4–5 qubits** son usables para un cómputo denso antes de que domine el
+ruido (medido arriba). Las corridas físicas son de juguete.
+
+> *Sí* hay conexión real con HuggingFace — cargás modelos como siempre — pero solo
+> los tiny corren genuinos; los más grandes cargan y sus capas grandes caen a
+> clásico. El hardware mejora cada año, y Qaithon está hecho para crecer con él: el
+> mismo `compile()` alcanzará modelos más grandes a medida que los qubits sean más
+> baratos y limpios.
+
+---
+
+## ⚖️ Dos límites opuestos
+
+La razón de que siga pequeño es **opuesta** para cada tecnología:
+
+<div align="center">
+
+| | 💡 Fotónica | ⚛️ Cuántica |
+|---|---|---|
+| **Cómo escala** | 1 carril de luz por número (lineal) | 2ⁿ números en n qubits (exponencial) |
+| **Hardware real** | diminuto — Belenos: 12 modos ≈ dim 6 | grande — IBM: 156 qubits |
+| **Simulador** | sobra (256 modos ≈ dim 128) | se queda corto (~30 qubits en laptop) |
+| **El muro** | número de modos | ruido (profundidad) |
+| **En el chip real** | exacta y con gracia | ruidosa y colapsa |
+
+</div>
+
+> 🅿️ **Analogía.** La fotónica es un parqueadero con un espacio por carro — se llena
+> rápido. La cuántica es un edificio donde cada piso nuevo *duplica* el cupo — pocos
+> pisos, muchísimo espacio, pero la luz parpadea (ruido).
+
+---
+
+## 🗺️ Qué corre dónde
+
+| dónde | qué corre genuino |
+|---|---|
+| 🔴 **Hardware cuántico real** (hoy) | ~4–5 qubits → circuitos de juguete y clasificadores tiny |
+| 💻 **Simulador en laptop** | transformers tiny (TinyStories-1M); dim ≤ 1024 cuántico / ≤ 128 fotónico |
+| 🖥️ **Simulador en máquina grande** | hasta capas ~escala GPT-2 (memoria exponencial) |
+| ❌ **LLMs reales** (Llama/Mistral/…) | no factible genuino hoy — _el estimador de qubits te muestra por qué_ |
+
+---
+
+## 🔌 Backends
+
+| Vendor | Dispositivo | Tipo | Backend | HW real | Simulador |
+|---|---|---|---|:---:|:---:|
+| IBM | Heron (156 qubits) | superconductor | `ibm.heron` | ✅ **corrió** | `ibm.aer` |
+| Quandela | Belenos (12 modos) | fotónico | `quandela.belenos` | ✅ **corrió** | `quandela.perceval` |
+| Quandela | MerLin | fotónico (autograd) | `quandela.merlin` | — | ✅ |
+| AWS Braket | IonQ Forte | ion atrapado | `aws.braket.ionq` | 💲 pago por shot | — |
+| AWS Braket | QuEra Aquila | átomo neutro (analógico) | `aws.braket.quera` | 💲 pago por shot | — |
+| AWS Braket | SV1 | simulador (nube) | `aws.braket.sv1` | — | ✅ |
+| Xanadu | PennyLane | varios | `pennylane.sim` | vía plugins | ✅ |
+| TuringQ | DeepQuantum | multi | `deepquantum` | — | ✅ |
+
+Capas genuinas entrenables: `qaithon.PhotonicLayer`, `qaithon.QuantumLayer`,
+`qaithon.ReuploadingClassifier`. Tres modos en los backends reales: `profile`
+(gratis), `calibrate` (telemetría real), `execute` (matmul genuino en la QPU).
+
+---
+
+## ⚡ Instalar · Configurar · Correr
 
 ```bash
-pip install qaithon
-
-# Agregá backends de hardware según necesites.
 pip install qaithon[huggingface,pennylane,quandela,deepquantum]
 ```
 
-## Configuración
-
-Las credenciales se resuelven en este orden (gana la más alta): setters
-programáticos, variables de entorno, un archivo `.env` local al
-proyecto.
-
 ```python
 import qaithon
-
-qaithon.configure(
-    ibm_token="...",
-    aws_access_key_id="AKIA...", aws_secret_access_key="...",
-    aws_region="us-east-1",
-    quandela_token="...",
-    huggingface_token="hf_...",
-)
-
-# Los setters por proveedor también funcionan.
-qaithon.set_ibm_token("...")
-qaithon.set_aws_credentials("AKIA...", "secret...")
-qaithon.set_quandela_token("...")
-qaithon.set_huggingface_token("hf_...")
-
-# Diagnóstico — booleanos, nunca los valores.
-qaithon.config.status()
-# {'ibm': True, 'aws': True, 'quandela': True, 'huggingface': True}
+qaithon.configure(ibm_token="...", quandela_token="...", huggingface_token="hf_...")
+qaithon.config.status()   # {'ibm': True, 'quandela': True, ...} — solo booleanos
 ```
 
-Detalles en [`docs/es/CONFIGURATION.md`](docs/es/CONFIGURATION.md).
-
-## Workflows de inicio rápido
-
-### Inferencia genuina de un modelo pequeño preentrenado
-
-Un modelo diminuto corre de punta a punta por circuitos cuánticos genuinos.
-(Modelos más grandes como GPT-2 también compilan, pero sus capas más anchas
-hacen lento el camino genuino — ver [`FINDINGS.md`](docs/es/FINDINGS.md) para
-los límites medidos.)
-
 ```python
-import qaithon
+# Correr un modelo tiny genuino en un simulador cuántico
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
-tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+tok = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
 model = AutoModelForCausalLM.from_pretrained("roneneldan/TinyStories-1M")
-
-model = qaithon.compile(model, backends=("pennylane.sim",))  # cuántico genuino
-print(model.qaithon_report.pretty())
-
-inputs = tokenizer("Once upon a time", return_tensors="pt")
-outputs = model.generate(**inputs, max_new_tokens=30)
-print(tokenizer.decode(outputs[0]))
+model = qaithon.compile(model, backends=("pennylane.sim",))
+print(tok.decode(model.generate(**tok("Once upon a time", return_tensors="pt"),
+                                max_new_tokens=20)[0]))
 ```
-
-### Toy transformer: inferencia cuántica genuina
-
-```python
-import qaithon
-from qaithon.lab import generate
-
-model = qaithon.models.create_toy_transformer(dim=64, n_layers=2)
-qaithon.compile(model, backends=("pennylane.sim",))   # cuántico genuino
-
-# El cómputo de cada capa corre por un circuito cuántico real.
-print(generate(model, "ROMEO:", max_new_tokens=100))
-```
-
-> Nota: el kernel genuino es de **inferencia** (no diferenciable). Para
-> **entrenar** capas genuinas usá las capas diferenciables `PhotonicLayer` /
-> `QuantumLayer` (ver [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)).
-
-### Validar que un modelo cabe en un hardware target
-
-```python
-import qaithon
-
-model = qaithon.models.create_toy_transformer(dim=128, n_layers=2)
-result = qaithon.validate_for_hardware(model, target="IBM Heron")
-print(result.pretty())
-# Se niega a empezar a entrenar si el modelo excede el presupuesto de la QPU.
-```
-
-### Estimar costo en qubits de cualquier modelo
-
-```python
-import qaithon
-# Funciona con modelos enormes — usa la config, nunca instancia los weights.
-report = qaithon.estimate_qubits_from_config(
-    hidden_size=12288, n_layers=96, n_heads=96,
-    model_class="GPT-3.5 equivalent",
-)
-print(report.pretty())
-```
-
-### Comparar backends lado a lado
 
 ```bash
-qaithon benchmark --explain
+qaithon list-backends   # backends registrados + disponibilidad
+qaithon doctor          # diagnostica el entorno
+qaithon inspect gpt2    # análisis: ¿qué haría compile()? (no lo corre)
 ```
 
-## Herramientas de línea de comandos
+---
 
-```bash
-qaithon list-backends        # backends registrados + disponibilidad
-qaithon doctor               # diagnostica el entorno local
-qaithon inspect <model_id>   # ¿qué le haría compile() a este modelo?
-qaithon compile <model_id>   # compila un modelo HF y lo guarda
-qaithon estimate <model_id>  # presupuesto de qubits para correr en QPU
-qaithon benchmark --explain  # comparación cross-backend
-qaithon glossary <term>      # explicación en lenguaje sencillo
-qaithon trace inspect <file> # imprime un trace JSON guardado
-qaithon plugins list         # backends de terceros vía entry points
-```
+## 🔁 Reproducir los resultados
 
-## Estructura del proyecto
+| script | qué corre |
+|---|---|
+| `scripts/run_hardware_experiments.py` | IBM: curva de colapso, clasificador Iris, A/B de mitigación |
+| `scripts/run_vqc_hardware.py` | IBM: VQC re-uploading superficial en Digits 10 clases (5 qubits) |
+| `scripts/run_photonic_hardware.py` | Quandela Belenos: matmul fotónico genuino (1 fotón) |
 
-```
-qaithon/
-  compile.py           qaithon.compile() — entry point principal
-  compile_report.py    audit trail de las decisiones de compile
-  config.py            credenciales y setters estilo SDK
-  glossary.py          explicaciones en lenguaje sencillo
-  qubits.py            estimación de presupuesto de qubits + validación
-  benchmarks.py        comparación de performance cross-backend
-  pricing.py           estimación de costo USD por proveedor
-  metrics.py           PhotonicMetrics, SuperconductingMetrics, etc.
-  backends/            IBM, Quandela, AWS, PennyLane, DeepQuantum
-  layers/              QuantumLinear, QuantumAttention
-  ir/                  analyzer + AutoBackendSelector + AdaptiveBackendSelector
-  handlers/            hooks por arquitectura (Mixtral, attention, ...)
-  models/              fábricas de toy transformers dimensionadas para QPUs reales
-  lab/                 datasets + loop de training + helpers de inferencia
-  hub/                 integración con HuggingFace Hub
-  training.py          QATConfig + prepare_for_qat
-  streaming.py         streamers compatibles con HF
-  pipeline.py          composición de pipelines
-  cache.py             caches in-memory + en disco
-  tracing.py           observabilidad liviana
-  observability.py     exporter de OpenTelemetry
-  fallback.py          fallback graceful en runtime entre backends
-  plugins.py           descubrimiento de backends de terceros vía entry_points
-  integrations/        vLLM (skeleton), más por venir
-```
+Todos necesitan un token gratis de IBM Quantum / un token de Quandela; envían jobs reales.
 
-## Licencia
+---
 
-MIT — ver [`LICENSE`](LICENSE).
+## 🚀 Roadmap
 
-## Autor
+Los circuitos genuinos ya corren en QPUs reales hoy — la conexión, los kernels y el
+ruteo funcionan de punta a punta. Lo que impide correr *modelos* es **ruido y
+escala**, justo lo que arregla la corrección de errores. El hardware corregido con
+**qubits lógicos ya existe** (la Helios de Quantinuum). A medida que crezcan los
+qubits lógicos y baje el error de compuerta, las curvas de colapso de arriba se
+corren a la derecha — y el mismo `qaithon.compile(model)` llega más lejos.
+**Clónalo, córrelo, empuja los límites.**
 
-Fabián Bautista — `fabbagar83@gmail.com`
+---
+
+<div align="center">
+
+Licencia MIT · Research preview · por **Fabián Bautista** · `fabbagar83@gmail.com`
+
+</div>

@@ -1,63 +1,65 @@
-# Working with any HuggingFace model
+# Working with HuggingFace models
 
-Qaithon supports **any** transformer distributed through the HuggingFace
-ecosystem — it does not maintain a per-model whitelist. The library
-detects the family automatically and applies family-specific defaults
-(skip patterns, minimum layer sizes, MoE awareness) that the user never
-has to think about.
+Qaithon connects to the HuggingFace ecosystem and **recognizes** most transformer
+families automatically — it reads the architecture and plans which `nn.Linear` /
+Conv1D layers *could* run on a quantum/photonic backend. But recognition and
+analysis are not the same as genuine execution: **only tiny transformers actually
+run genuinely** on today's simulators (verified end-to-end on TinyStories-1M).
+Larger models still load and compile, but their oversized layers fall back to the
+classical path — see *Why only tiny models run* below.
 
-## Tested architectures
+## Architectures Qaithon recognizes (for analysis & planning)
 
-| Family    | Compile? | Notes |
-|-----------|---------:|-------|
-| GPT-2     | yes | Conv1D layout handled automatically. |
-| GPT-Neo   | yes | Same Conv1D path as GPT-2. |
-| Llama 1/2/3 | yes | Standard `nn.Linear` Q/K/V/O + gate/up/down. |
-| Mistral   | yes | Sliding-window attention left intact. |
-| Mixtral   | yes | 3D expert weights rewritten by the Mixtral handler. |
-| Phi-2 / Phi-3 | yes | Fused QKV detected as a single Linear. |
-| Qwen 1.5 / 2 | yes | Aggressive GQA — Linear paths swap normally. |
-| Gemma     | yes | Tied embeddings auto-detected via `accelerate`. |
-| BERT / RoBERTa | yes | Encoder-only. CLS / pooler skipped. |
+Recognition lets Qaithon estimate a model's qubit/mode budget and plan a compile.
+It does **not** mean the model runs genuinely on a QPU at its real size.
 
-For families not listed, Qaithon falls back to the `generic` profile —
-conservative defaults that work safely on any transformer-shaped model.
-The CompileReport will indicate `family=generic` so you know.
+| Family | Recognized | Notes |
+|---|---:|---|
+| GPT-2 / GPT-Neo | yes | Conv1D layout handled automatically. |
+| Llama / Mistral / Qwen / Gemma / Phi | yes | Standard `nn.Linear` Q/K/V/O + MLP. |
+| Mixtral / MoE | yes | Expert weights detected by the MoE handler. |
+| BERT / RoBERTa | yes | Encoder-only; CLS / pooler skipped. |
 
-## Example with Llama-3
+Unlisted families fall back to a conservative `generic` profile; the
+CompileReport shows `family=generic`.
 
-```python
-import qaithon
-from transformers import AutoModelForCausalLM
-
-model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3-8B")
-qaithon.compile(model)
-# model is now compiled. Use with .generate(), Trainer, accelerate, peft, anything.
-```
-
-## Example with Mixtral (MoE)
+## What actually runs genuinely (tiny only)
 
 ```python
 import qaithon
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-model = AutoModelForCausalLM.from_pretrained("mistralai/Mixtral-8x7B-v0.1")
-qaithon.compile(model)
-# Mixtral handler kicks in automatically:
-# - Each expert's weight slice becomes a QuantumLinear.
-# - The router stays classical.
-# - `model.qaithon_report` shows "experts transformed: 256" (8 layers × 32 experts).
+# A TINY model runs genuinely on a quantum simulator (laptop-sized).
+tok = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+model = AutoModelForCausalLM.from_pretrained("roneneldan/TinyStories-1M")
+model = qaithon.compile(model, backends=("pennylane.sim",))  # genuine quantum
+out = model.generate(**tok("Once upon a time", return_tensors="pt"), max_new_tokens=30)
+print(tok.decode(out[0]))
 ```
 
-## What if a custom model breaks?
+## Analyzing a large model (without running it)
 
-If `qaithon.compile(model)` raises `IncompatibleModelError`, the message
-will tell you what to do (usually: load the original model without
-quantization first). For other failures, file an issue with:
+You can still point Qaithon at a large model to **see why it doesn't fit** — this
+reads the config only; it does **not** execute the model on a QPU:
 
-* Model id (`AutoConfig.from_pretrained(...).architectures`).
-* The output of `qaithon.compile(model, return_report=True)`.
-* The Python traceback.
+```bash
+# Analysis only — shows the qubit budget, far beyond any real device today.
+qaithon estimate mistralai/Mixtral-8x7B-v0.1
+```
 
-The library is open under MIT — contributions of new family
-profiles are welcome (`qaithon/handlers/architecture.py`).
+## Why only tiny models run
+
+Simulating a quantum computer is **exponential**: each extra qubit doubles the
+memory. ~30 qubits already fills a 16 GB laptop; a 45–50 qubit emulator needs a
+supercomputer. So a normal machine can only genuinely run *small* circuits — tiny
+transformers like TinyStories-1M. A GPT-2-scale layer already needs more than a
+laptop; real LLMs (Llama, Mistral, …) are out of reach today. On real quantum
+hardware, only ~4–5 qubits are usable before noise dominates. The hardware
+improves every year, and Qaithon is built to grow with it.
+
+## What if a model breaks?
+
+If `qaithon.compile(model)` raises `IncompatibleModelError`, the message tells you
+what to do. For other failures, file an issue with the model id, the output of
+`qaithon.compile(model, return_report=True)`, and the traceback. MIT-licensed —
+new family profiles welcome (`qaithon/handlers/architecture.py`).

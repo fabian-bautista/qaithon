@@ -34,8 +34,9 @@ Load a HuggingFace model and print the `ReplacementPlan` — which layers
 Qaithon would replace, which it would skip, which are tied.
 
 ```bash
-qaithon inspect gpt2
-qaithon inspect mistralai/Mixtral-8x7B-v0.1 --json
+qaithon inspect gpt2 --json
+# For a large model, use `estimate` (reads the config — no multi-GB download):
+qaithon estimate mistralai/Mixtral-8x7B-v0.1   # analysis: shows it doesn't fit today
 ```
 
 | Flag | Effect |

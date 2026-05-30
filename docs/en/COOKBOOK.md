@@ -2,16 +2,17 @@
 
 Practical, copy-paste-ready recipes.
 
-## Recipe 1 — Inference on any HuggingFace model
+## Recipe 1 — Inference on a tiny HuggingFace model
 
 ```python
 import qaithon
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-tok = AutoTokenizer.from_pretrained("gpt2")
-model = AutoModelForCausalLM.from_pretrained("gpt2")
+# Only tiny transformers run genuinely today; TinyStories-1M is the verified one.
+tok = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+model = AutoModelForCausalLM.from_pretrained("roneneldan/TinyStories-1M")
 
-model = qaithon.compile(model, optimize_for="energy")
+model = qaithon.compile(model, backends=("pennylane.sim",))  # genuine quantum
 print(model.qaithon_report.pretty(explain=True))
 
 outputs = model.generate(**tok("Quantum computing", return_tensors="pt"),
@@ -68,11 +69,12 @@ qaithon.lab.train(
 ```python
 import qaithon
 
-# Llama-3 70B equivalent, in milliseconds, zero RAM.
+# Analysis only (zero RAM): estimate a 70B-class model's qubit budget from its
+# config — it shows the impossible count such a model would need today.
 report = qaithon.estimate_qubits_from_config(
     hidden_size=8192, n_layers=80, n_heads=64,
     intermediate_size=28672,
-    model_class="Llama-3 70B equivalent",
+    model_class="70B-class (analysis only — does not run)",
 )
 print(report.pretty())
 ```

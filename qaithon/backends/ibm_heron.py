@@ -7,11 +7,13 @@ and behaves identically to the classical baseline — that is what
 ``qaithon.compile`` uses for routine inference. The user opts into
 ``calibrate`` explicitly when they want a real-hardware reading.
 
+In ``mode="execute"`` it runs the genuine matmul as a real circuit on the QPU
+(opt-in; consumes quota). Validated on real hardware at tiny scale.
+
 Quota awareness: the Open Plan grants 10 minutes of QPU time per month.
 Each calibrate call dispatches one tiny circuit (~3 qubits, 32 shots,
-sub-second). Practical budget: ~600 calibrate calls per month before the
-cap. The library refuses to dispatch full-execute mode for now to avoid
-accidentally burning the quota.
+sub-second). Execute mode fires one circuit per input row and is heavier,
+especially with ``mitigation=True`` — use it deliberately.
 """
 
 from __future__ import annotations
@@ -48,14 +50,24 @@ class IBMHeronBackend(RealHardwareBackendBase):
 
     Args:
         mode: Operation mode. ``"profile"`` (default) costs nothing.
-            ``"calibrate"`` dispatches one small circuit per forward call.
-            ``"execute"`` is not implemented for v0.1 — too expensive to
-            be useful without optimization passes.
-        shots: Number of shots per calibration circuit. Defaults to 32 —
-            cheap and enough for a noise-scale estimate.
+            ``"calibrate"`` dispatches one small calibration circuit per
+            forward call. ``"execute"`` runs the **genuine matmul** as a real
+            circuit on the QPU (amplitude-encode → unitary dilation → measure →
+            reconstruct), one circuit per input row in a single job. Validated
+            on ``ibm_marrakesh``; tiny scale (a dense matmul stays usable to
+            ~4 qubits before noise dominates — see the project README).
+        shots: Number of shots per circuit. Defaults to 32 — cheap and enough
+            for a noise-scale estimate; use more (e.g. 2048-4096) for execute.
         backend_preference: Optional ordered tuple of QPU names to prefer
             (e.g. ``("ibm_kingston", "ibm_marrakesh")``). When ``None``,
             the runtime picks the least-busy backend.
+        mitigation: When ``True`` (execute mode), applies a software error
+            **mitigation** stack: higher transpiler optimization (better layout
+            + fewer gates), dynamical decoupling (XY4), and measurement
+            twirling. Measured to rescue borderline circuits (a 4-qubit Iris
+            classifier rose 71%→86%); it does *not* undo accumulated two-qubit
+            gate error, so it cannot rescue circuits already past the noise
+            floor (~5+ qubits / thousands of gates). Off by default.
     """
 
     profile: BackendProfile = BackendProfile(
@@ -69,8 +81,9 @@ class IBMHeronBackend(RealHardwareBackendBase):
         max_dim=156,
         notes=(
             "IBM Heron QPU (real superconducting hardware via IBM Quantum). "
-            "Dispatches real calibration circuits in mode='calibrate'. "
-            "mode='execute' is intentionally disabled to protect Open Plan quota."
+            "mode='calibrate' fires a small calibration circuit; mode='execute' "
+            "runs the genuine matmul on real qubits (opt-in, consumes quota; "
+            "optional software mitigation via mitigation=True)."
         ),
     )
 
@@ -79,12 +92,20 @@ class IBMHeronBackend(RealHardwareBackendBase):
         mode: BackendMode = "profile",
         shots: int = 32,
         backend_preference: tuple[str, ...] | None = None,
+        mitigation: bool = False,
     ) -> None:
         super().__init__(mode=mode)
         if shots < 1:
             raise ValueError(f"shots must be positive, got {shots}.")
         self._shots = shots
         self._backend_preference = backend_preference
+        # Software error mitigation for mode="execute": higher transpiler
+        # optimization (better layout + fewer gates), dynamical decoupling
+        # (protects idle qubits), and measurement twirling (averages readout
+        # bias). These help with layout/idle/readout error — they do NOT undo
+        # accumulated two-qubit gate error (that needs PEC, infeasible at high
+        # gate counts).
+        self._mitigation = mitigation
         self._service = None  # lazy
         self._backend = None  # lazy
 
@@ -246,10 +267,21 @@ class IBMHeronBackend(RealHardwareBackendBase):
         fids: list = []
         n_gates = 0
         if circuits:
-            compiled = transpile(circuits, backend, optimization_level=1)
+            opt_level = 3 if self._mitigation else 1
+            compiled = transpile(circuits, backend, optimization_level=opt_level)
             n_gates = int(np.mean([sum(c.count_ops().values()) for c in compiled]))
+            sampler = SamplerV2(mode=backend)
+            if self._mitigation:
+                # Best-effort: option names vary across qiskit-ibm-runtime versions.
+                try:
+                    sampler.options.dynamical_decoupling.enable = True
+                    sampler.options.dynamical_decoupling.sequence_type = "XY4"
+                    sampler.options.twirling.enable_gates = True
+                    sampler.options.twirling.enable_measure = True
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Could not enable all mitigation options: %s", exc)
             t0 = time.perf_counter()
-            results = SamplerV2(mode=backend).run(compiled, shots=self._shots).result()
+            results = sampler.run(compiled, shots=self._shots).result()
             self._last_circuit_latency_us = (time.perf_counter() - t0) * 1e6
             ci = 0
             for r, nrm, out_state in rows_meta:
@@ -280,6 +312,7 @@ class IBMHeronBackend(RealHardwareBackendBase):
             "n_qubits": q,
             "n_gates": n_gates,
             "shots": self._shots,
+            "mitigation": self._mitigation,
             "fidelity": float(np.mean(fids)) if fids else 0.0,
             "fidelity_per_row": fids,
             "n_rows": n_rows,

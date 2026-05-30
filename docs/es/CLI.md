@@ -34,8 +34,9 @@ Carga un modelo de HuggingFace e imprime el `ReplacementPlan` — qué
 capas Qaithon reemplazaría, cuáles saltaría, cuáles están atadas.
 
 ```bash
-qaithon inspect gpt2
-qaithon inspect mistralai/Mixtral-8x7B-v0.1 --json
+qaithon inspect gpt2 --json
+# Para un modelo grande, usá `estimate` (lee la config — sin descarga de varios GB):
+qaithon estimate mistralai/Mixtral-8x7B-v0.1   # análisis: muestra que no cabe hoy
 ```
 
 | Flag | Efecto |

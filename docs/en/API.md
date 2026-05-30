@@ -94,8 +94,9 @@ Walk `model` and produce per-layer qubit + circuit-depth budgets
 
 ### `qaithon.estimate_qubits_from_config(*, hidden_size, n_layers, n_heads=1, intermediate_size=None, vocab_size=0, model_class="FromConfig") -> QubitReport`
 
-Estimate without instantiating the model. Handles GPT-3.5 / Llama-405B
-without touching RAM.
+Estimate from a config without instantiating the model (zero RAM). Works at any
+size — feed it a 405B-class config and it shows the impossible qubit count such a
+model would need today. Analysis only; it does not run the model.
 
 ```python
 report = qaithon.estimate_qubits_from_config(
