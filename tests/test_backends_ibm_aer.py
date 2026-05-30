@@ -45,7 +45,9 @@ class TestMatmulNoNoise:
 
 
 class TestMatmulWithRealAerExecution:
-    def test_runs_circuit_and_records_latency(self):
+    def test_runs_genuine_circuit(self):
+        # The genuine qubit kernel computes the matmul exactly (inference-only).
+        import torch.nn.functional as F
         from qaithon.backends.ibm_aer import IBMAerBackend
 
         backend = IBMAerBackend(noise_strength=0.01, max_qubits=4, seed=0)
@@ -53,8 +55,7 @@ class TestMatmulWithRealAerExecution:
         w = torch.randn(3, 8)
         y = backend.matmul(x, w)
         assert y.shape == (2, 3)
-        # AerSimulator was invoked at least once, so we recorded latency.
-        assert backend.last_aer_latency_us > 0
+        assert torch.allclose(y, F.linear(x, w), atol=1e-4)
 
     def test_output_preserves_dtype_and_device(self):
         from qaithon.backends.ibm_aer import IBMAerBackend
@@ -65,16 +66,15 @@ class TestMatmulWithRealAerExecution:
         y = backend.matmul(x, w)
         assert y.dtype == torch.float32
 
-    def test_gradients_flow_through_classical_path(self):
-        """Noise is detached so it doesn't contribute, but the classical path must."""
+    def test_genuine_matmul_matches_classical(self):
+        """Genuine qubit kernel reproduces F.linear (inference-only, not differentiable)."""
+        import torch.nn.functional as F
         from qaithon.backends.ibm_aer import IBMAerBackend
 
         backend = IBMAerBackend(noise_strength=0.01, max_qubits=4)
-        x = torch.randn(2, 4, requires_grad=True)
-        w = torch.randn(3, 4, requires_grad=True)
-        backend.matmul(x, w).sum().backward()
-        assert x.grad is not None
-        assert w.grad is not None
+        x = torch.randn(2, 4)
+        w = torch.randn(3, 4)
+        assert torch.allclose(backend.matmul(x, w), F.linear(x, w), atol=1e-4)
 
 
 class TestArgumentValidation:

@@ -1,7 +1,8 @@
 # Qaithon
 
-Corré partes de cualquier LLM de HuggingFace sobre backends fotónicos o
-cuánticos sin reescribir el modelo.
+Corré partes de un LLM de HuggingFace con **algoritmos cuánticos y fotónicos
+genuinos** — en simuladores hoy, en QPUs reales cuando se abran — sin reescribir
+el modelo. Un paso pequeño, honesto y reproducible en la frontera IA × cuántica × fotónica.
 
 [English](README.md) · [Documentación](docs/es/README.md) · [Recetario](docs/es/COOKBOOK.md) · [Configuración](docs/es/CONFIGURATION.md)
 
@@ -15,51 +16,58 @@ cuánticos sin reescribir el modelo.
 ## Qué hace
 
 Escribís código PyTorch / HuggingFace normal. Qaithon recorre el modelo,
-reemplaza las capas `nn.Linear` / Conv1D reemplazables por versiones
-aceleradas por backend, y te devuelve el mismo `nn.Module` que pasaste —
-solo que ahora sus matmuls pueden correr en un backend fotónico o
-cuántico.
+reemplaza las capas `nn.Linear` / Conv1D por versiones cuyos matmuls los
+computa un **algoritmo cuántico o fotónico genuino**, y te devuelve el mismo
+`nn.Module` que pasaste.
 
 ```python
 import qaithon
 from transformers import AutoModelForCausalLM
 
-model = AutoModelForCausalLM.from_pretrained("gpt2")
-model = qaithon.compile(model)
+model = AutoModelForCausalLM.from_pretrained("roneneldan/TinyStories-1M")
+model = qaithon.compile(model, backends=("pennylane.sim",))  # cuántico genuino
 
 outputs = model.generate(input_ids, max_new_tokens=50)
 ```
 
-El selector elige el mejor backend por capa según lo que esté instalado
-en tu máquina y el objetivo que le pases (`"speed"`, `"energy"`,
-`"balanced"`). Todo lo que está debajo del API público es detalle interno
-reemplazable.
+Los matmuls corren el algoritmo real (Perceval/MerLin fotónica,
+Qiskit/PennyLane qubits) — **no** matemática clásica con etiqueta cuántica.
+Hoy se ejecutan en **simuladores locales**; el mismo código apunta a una QPU
+real cuando se abra el acceso. Funciona a **escala pequeña** — el hardware
+cuántico/fotónico es genuinamente diminuto hoy, así que esto es primero un
+instrumento de investigación. Mirá [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)
+para ver hasta dónde llega la tecnología, con números medidos — incluido un
+**modelo real preentrenado generando texto coherente en un circuito cuántico genuino**.
 
 ## Qué obtenés
 
 - `qaithon.compile(model)` drop-in. Sin reescribir el modelo.
-- Multi-backend: IBM superconductor, Quandela fotónico, AWS QuEra e
-  IonQ, más simuladores locales.
-- Auto-selección de backend por capa, con un modo adaptativo opcional
-  que aprende de la latencia / energía observadas.
-- Funciona con cualquier modelo del HuggingFace Hub.
-- Lab de toy transformers: armar, entrenar y generar de punta a punta en
-  4 líneas.
-- Métricas reales: latencia, energía (pJ/MAC), fidelidad, conteo de
-  fotones.
-- Validación de hardware que se niega a empezar a entrenar si el modelo
-  excede el presupuesto de qubits / depth de la QPU objetivo.
-- Health checks contra QPUs cloud antes de enviar jobs.
-- Glosario embebido: `qaithon.explain("fidelity", 0.987)`.
-- Integración con HuggingFace Hub vía `qaithon.hub`.
+- **Cómputo genuino** — matmuls computados por algoritmos cuánticos/fotónicos
+  reales, validados exactos contra el resultado clásico (no fingidos con ruido).
+- Multi-backend: Quandela fotónico (Perceval/MerLin), IBM/PennyLane/DeepQuantum
+  cuántico, más `mock` (la referencia clásica explícita). Conectores a hardware
+  real IBM/Quandela/AWS (experimental).
+- Auto-selección de un backend genuino por capa (objetivo: speed/energy/balanced).
+- Capas fotónicas y cuánticas **entrenables** (`PhotonicLayer`, `QuantumLayer`).
+- Estimación de presupuesto de qubits/modos + validación — te dice qué
+  necesitaría *cualquier* modelo (incluso a escala GPT-3) en una QPU real. El
+  análisis es gratis e instantáneo.
+- Lab de toy/micro transformers: armar, entrenar y generar de punta a punta.
+- Glosario embebido: `qaithon.explain("fidelity", 0.987)`; integración con HF Hub.
+- Límites honestos y medidos por tecnología: [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md).
 
 ## Soporte de hardware
+
+Hoy, **el cómputo genuino corre en los simuladores locales** (el algoritmo real,
+exacto). La columna "hardware real" significa que existe un conector, pero las
+corridas físicas son diminutas y gateadas — mirá [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)
+y el [roadmap](docs/en/ROADMAP.md) para ver qué corre de verdad en una QPU hoy.
 
 | Vendor | Dispositivo | Tipo | Backend | Hardware real | Simulador local |
 |---|---|---|---|---|---|
 | IBM | Heron (156 qubits) | Superconductor | `ibm.heron` | sí | `ibm.aer` |
 | IBM | Aer | Simulador | `ibm.aer` | n/a | sí (ideal + realista) |
-| Quandela | Belenos (6 modos) | Fotónico | `quandela.belenos` | sí | `quandela.perceval` |
+| Quandela | Belenos (12 modos) | Fotónico | `quandela.belenos` | experimental | `quandela.perceval` |
 | Quandela | Perceval SLOS | Sim fotónico | `quandela.perceval` | n/a | sí |
 | Quandela | MerLin | Fotónico (autograd) | `quandela.merlin` | n/a | sí |
 | AWS Braket | SV1 | Simulador | `aws.braket.sv1` | n/a | sí |
@@ -70,32 +78,32 @@ reemplazable.
 
 ## Números medidos
 
-Comparación cross-backend sobre un matmul `(2, 16) × (16, 16)`:
+El kernel genuino computa el matmul **de forma exacta** en simulación — el
+circuito *es* la cuenta, así que reproduce el resultado clásico con precisión
+de máquina:
 
-| Backend | Tipo | Latencia (µs) | Energía (pJ) | Fidelidad vs clásico |
-|---|---|---:|---:|---:|
-| `mock` (baseline GPU) | clásico | 1 | 256.00 | 1.0000 |
-| `quandela.perceval` | fotónico, circuito real | 506 | 1.28 | 0.9845 |
-| `quandela.sim` | perfil fotónico | 1 | 12.80 | 1.0000 |
-| `ibm.aer` | cuántico, circuito real | 40,437 | 153.60 | 0.9999 |
-| `aws.braket.sv1` | cuántico | 1 | 128.00 | 1.0000 |
-| `pennylane.sim` | cuántico | 1 | 204.80 | 1.0000 |
+| Backend | Tipo | Cómputo | Fidelidad vs clásico (sim) |
+|---|---|---|---:|
+| `quandela.perceval` / `quandela.sim` / `quandela.merlin` | fotónico | genuino (Perceval/MerLin) | 1.0000 |
+| `ibm.aer` / `pennylane.sim` / `deepquantum` | cuántico | genuino (Qiskit/PennyLane) | 1.0000 |
+| `mock` | referencia clásica | `F.linear` | 1.0000 |
 
-`quandela.perceval` reporta cerca de dos órdenes de magnitud menos
-energía por MAC que el baseline clásico, a un costo de 1.5% de
-fidelidad — dentro del rango que QAT entrena al modelo a tolerar.
+La energía / latencia por backend vienen de perfiles de costo declarados. La
+pérdida de fidelidad **no** la produce el simulador exacto — solo aparece en
+hardware físico (pérdida óptica, decoherencia), que es justo el punto de correr ahí.
 
-Primera corrida en **Quandela Belenos** (QPU fotónica en vivo):
+**Highlight — un modelo real en un circuito cuántico genuino:** el preentrenado
+**TinyStories-1M** generó texto coherente ("...una niña llamada Lily a la que le
+gustaba jugar al sol...") con sus 48 capas lineales computadas por circuitos
+cuánticos genuinos — salida **idéntica** al clásico (error 1e-6).
 
-```
-Latencia:                33.99 segundos (cola cloud + ejecución)
-Fotones inyectados:      200
-Fotones detectados:      103
-Eficiencia de detección: 51.50%
-Pérdida medida:          48.50%
-```
+Resultados completos, límites por tecnología (medidos en un laptop) y la
+explicación en lenguaje simple de *por qué* es pequeño están en
+**[`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)**.
 
-Estos números vienen del hardware; el simulador local no los produce.
+> Las corridas en hardware físico son diminutas y gateadas hoy (un solo circuito
+> chico, no un modelo completo). Ver el [roadmap](docs/en/ROADMAP.md) — cuando se
+> abra el hardware corregido de errores, el mismo código apunta a él.
 
 ## Instalación
 
@@ -138,37 +146,44 @@ Detalles en [`docs/es/CONFIGURATION.md`](docs/es/CONFIGURATION.md).
 
 ## Workflows de inicio rápido
 
-### Inferencia sobre cualquier modelo de HuggingFace
+### Inferencia genuina de un modelo pequeño preentrenado
+
+Un modelo diminuto corre de punta a punta por circuitos cuánticos genuinos.
+(Modelos más grandes como GPT-2 también compilan, pero sus capas más anchas
+hacen lento el camino genuino — ver [`FINDINGS.md`](docs/es/FINDINGS.md) para
+los límites medidos.)
 
 ```python
 import qaithon
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained("gpt2")
-model = AutoModelForCausalLM.from_pretrained("gpt2")
+tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+model = AutoModelForCausalLM.from_pretrained("roneneldan/TinyStories-1M")
 
-model = qaithon.compile(model, optimize_for="energy")
+model = qaithon.compile(model, backends=("pennylane.sim",))  # cuántico genuino
 print(model.qaithon_report.pretty())
 
-inputs = tokenizer("Quantum computing is", return_tensors="pt")
+inputs = tokenizer("Once upon a time", return_tensors="pt")
 outputs = model.generate(**inputs, max_new_tokens=30)
 print(tokenizer.decode(outputs[0]))
 ```
 
-### Toy transformer con training e inferencia
+### Toy transformer: inferencia cuántica genuina
 
 ```python
 import qaithon
-from qaithon.lab import load_dataset, train, generate
+from qaithon.lab import generate
 
 model = qaithon.models.create_toy_transformer(dim=64, n_layers=2)
-qaithon.compile(model, backends=("quandela.sim",))
+qaithon.compile(model, backends=("pennylane.sim",))   # cuántico genuino
 
-dataset = load_dataset("shakespeare")
-train(model, dataset, steps=2000, noise_std=0.05)  # QAT activado
-
+# El cómputo de cada capa corre por un circuito cuántico real.
 print(generate(model, "ROMEO:", max_new_tokens=100))
 ```
+
+> Nota: el kernel genuino es de **inferencia** (no diferenciable). Para
+> **entrenar** capas genuinas usá las capas diferenciables `PhotonicLayer` /
+> `QuantumLayer` (ver [`docs/es/FINDINGS.md`](docs/es/FINDINGS.md)).
 
 ### Validar que un modelo cabe en un hardware target
 

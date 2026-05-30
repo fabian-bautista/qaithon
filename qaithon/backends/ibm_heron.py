@@ -186,6 +186,113 @@ class IBMHeronBackend(RealHardwareBackendBase):
         # Translate fraction-out-of-ideal into a noise scale ~ [0, ~0.5].
         return max(0.005, noise_fraction)
 
+    def _execute_full_matmul(self, x, weight, bias=None):  # type: ignore[no-untyped-def]
+        """GENUINE matmul on real IBM hardware (all input rows, one job).
+
+        Amplitude-encodes each input row, applies the unitary dilation of
+        ``weight`` as a circuit, measures on a real Heron QPU, and reconstructs
+        the output from the measured distribution. All rows are dispatched in a
+        single job. Records telemetry in ``self.last_execute`` (qubits, shots,
+        gate count, mean and per-row measured-vs-ideal fidelity). This is the
+        real-hardware counterpart of :func:`qaithon.kernels.quantum_linear`.
+
+        Limitation: measurement yields ``|amplitude|^2`` only, so output
+        *magnitudes* are measured on hardware while *signs* are reconstructed
+        from the ideal. Full sign recovery needs a Hadamard test (planned).
+        """
+        import math
+
+        import numpy as np
+        import torch
+        from qiskit import QuantumCircuit, transpile
+        from qiskit.circuit.library import UnitaryGate
+        from qiskit_ibm_runtime import SamplerV2
+
+        from qaithon.kernels import _dilate
+
+        wn = weight.detach().cpu().numpy().astype(float)
+        out_f, in_f = wn.shape
+        u, scale, n = _dilate(wn)
+        dim = 2 * n
+        q = max(1, math.ceil(math.log2(dim)))
+        pad = 2**q
+        upad = np.eye(pad, dtype=complex)
+        upad[:dim, :dim] = u
+        gate = UnitaryGate(upad)
+
+        flat = x.detach().cpu().numpy().astype(float).reshape(-1, in_f)
+        n_rows = flat.shape[0]
+        backend = self._pick_backend()
+
+        # One circuit per input row, all dispatched in a single job.
+        circuits: list = []
+        rows_meta: list = []  # (row_index, nrm, ideal_out_state | None)
+        for r, xv in enumerate(flat):
+            amp = np.zeros(pad)
+            amp[:in_f] = xv
+            nrm = float(np.linalg.norm(amp))
+            if nrm < 1e-12:
+                rows_meta.append((r, 0.0, None))
+                continue
+            amp = amp / nrm
+            qc = QuantumCircuit(q, q)
+            qc.initialize(amp, range(q))
+            qc.append(gate, range(q))
+            qc.measure(range(q), range(q))
+            circuits.append(qc)
+            rows_meta.append((r, nrm, upad @ amp))
+
+        out = np.zeros((n_rows, out_f))
+        fids: list = []
+        n_gates = 0
+        if circuits:
+            compiled = transpile(circuits, backend, optimization_level=1)
+            n_gates = int(np.mean([sum(c.count_ops().values()) for c in compiled]))
+            t0 = time.perf_counter()
+            results = SamplerV2(mode=backend).run(compiled, shots=self._shots).result()
+            self._last_circuit_latency_us = (time.perf_counter() - t0) * 1e6
+            ci = 0
+            for r, nrm, out_state in rows_meta:
+                if out_state is None:
+                    continue
+                res_i = results[ci]
+                ci += 1
+                try:
+                    counts = res_i.data.c.get_counts()
+                except AttributeError:
+                    counts = res_i.data.meas.get_counts()
+                total = sum(counts.values())
+                probs = np.zeros(pad)
+                for bitstr, c in counts.items():
+                    probs[int(bitstr, 2)] = c / max(1, total)
+                probs_ideal = np.abs(out_state) ** 2
+                # Classical (Bhattacharyya) fidelity: measured vs ideal distribution.
+                fids.append(float(np.sum(np.sqrt(probs * probs_ideal)) ** 2))
+                out[r] = (
+                    np.sign(out_state[:out_f].real)
+                    * np.sqrt(probs[:out_f])
+                    * scale
+                    * nrm
+                )
+
+        self.last_execute = {
+            "device": getattr(backend, "name", str(backend)),
+            "n_qubits": q,
+            "n_gates": n_gates,
+            "shots": self._shots,
+            "fidelity": float(np.mean(fids)) if fids else 0.0,
+            "fidelity_per_row": fids,
+            "n_rows": n_rows,
+            "latency_s": self._last_circuit_latency_us / 1e6,
+        }
+
+        res = torch.from_numpy(out).to(device=x.device, dtype=x.dtype).reshape(
+            *x.shape[:-1], out_f
+        )
+        if bias is not None:
+            res = res + bias.detach().to(device=x.device, dtype=x.dtype)
+        return res
+
 
 # Conditional registration so machines without the IBM stack don't crash.
 if _has("qiskit") and _has("qiskit_ibm_runtime"):

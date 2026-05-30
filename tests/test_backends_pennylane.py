@@ -70,13 +70,14 @@ class TestMatmul:
         b = torch.randn(4)
         assert torch.allclose(backend.matmul(x, w, b), F.linear(x, w, b))
 
-    def test_pennylane_sim_supports_gradients(self):
+    def test_genuine_matmul_matches_classical(self):
+        # Genuine qubit kernel computes the matmul exactly (inference-only).
+        import torch.nn.functional as F
+
         backend = PennyLaneSimBackend()
-        x = torch.randn(2, 4, requires_grad=True)
-        w = torch.randn(3, 4, requires_grad=True)
-        backend.matmul(x, w).sum().backward()
-        assert x.grad is not None
-        assert w.grad is not None
+        x = torch.randn(2, 4)
+        w = torch.randn(3, 4)
+        assert torch.allclose(backend.matmul(x, w), F.linear(x, w), atol=1e-4)
 
 
 class TestSelectorRespectAutograd:

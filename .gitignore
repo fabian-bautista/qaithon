@@ -1,5 +1,7 @@
-# Research / test logs (local bitácora, not versioned)
+# Research / test logs (local working dumps, not versioned).
+# The polished, committable version lives in docs/en/FINDINGS.md.
 logs.md
+docs/RESULTS.md
 
 # Python
 __pycache__/

@@ -114,9 +114,9 @@ def photonic_linear(
         )
         out[r] = y * scale * nrm
 
-    res = torch.from_numpy(out).to(x.dtype).reshape(*x.shape[:-1], out_f)
+    res = torch.from_numpy(out).to(device=x.device, dtype=x.dtype).reshape(*x.shape[:-1], out_f)
     if bias is not None:
-        res = res + bias.detach().cpu().to(x.dtype)
+        res = res + bias.detach().to(device=x.device, dtype=x.dtype)
     return res
 
 
@@ -163,7 +163,7 @@ def quantum_linear(
         y = sv.data[:out_f].real
         out[r] = y * scale * nrm
 
-    res = torch.from_numpy(out).to(x.dtype).reshape(*x.shape[:-1], out_f)
+    res = torch.from_numpy(out).to(device=x.device, dtype=x.dtype).reshape(*x.shape[:-1], out_f)
     if bias is not None:
-        res = res + bias.detach().cpu().to(x.dtype)
+        res = res + bias.detach().to(device=x.device, dtype=x.dtype)
     return res

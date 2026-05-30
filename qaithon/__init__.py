@@ -70,8 +70,10 @@ from qaithon import (  # noqa: F401
     config,
     fallback,
     handlers,
+    hardware_limits,
     hub,
     integrations,
+    kernels,
     lab,
     metrics,
     models,
@@ -83,6 +85,10 @@ from qaithon import (  # noqa: F401
     tracing,
     training,
 )
+
+# Genuine, trainable quantum / photonic layers (differentiable).
+from qaithon.layers.photonic_layer import PhotonicLayer
+from qaithon.layers.quantum_layer import QuantumLayer
 
 __version__ = "0.0.1"
 
@@ -124,14 +130,19 @@ __all__ = [
     "set_huggingface_token",
     "set_ibm_token",
     "set_quandela_token",
+    # Genuine, trainable quantum / photonic layers.
+    "PhotonicLayer",
+    "QuantumLayer",
     # Sub-packages.
     "benchmarks",
     "cache",
     "config",
     "fallback",
     "handlers",
+    "hardware_limits",
     "hub",
     "integrations",
+    "kernels",
     "lab",
     "metrics",
     "models",
