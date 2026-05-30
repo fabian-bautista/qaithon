@@ -44,7 +44,6 @@ for term in qaithon.list_terms():
 - **queue time** — wait before a cloud QPU starts executing.
 - **amplitude encoding** — packing N values into log₂(N) qubits.
 - **block encoding** — embedding non-unitary matrices via ancilla qubits.
-- **QAT** — Quantization-Aware Training with quantum noise injection.
 - **variational quantum circuit** — parametrized circuit trained
   classically.
 - **parameter-shift rule** — exact gradients of quantum circuits.

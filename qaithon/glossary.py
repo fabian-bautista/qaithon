@@ -121,8 +121,8 @@ _add(GlossaryEntry(
         "a small matmul — about 1.3% deviation from the classical result."
     ),
     rule_of_thumb=(
-        "0.99+ = excellent; 0.95–0.99 = acceptable for QAT-trained models; "
-        "< 0.9 = the model output will likely be incoherent."
+        "0.99+ = excellent; 0.95–0.99 = acceptable for noise-robust tasks "
+        "(e.g. classification); < 0.9 = the model output will likely be incoherent."
     ),
 ))
 
@@ -288,30 +288,6 @@ _add(GlossaryEntry(
 ))
 
 _add(GlossaryEntry(
-    term="QAT",
-    short=(
-        "Quantization-Aware Training. You inject realistic quantum noise "
-        "into the forward pass during training so the model learns to be "
-        "robust to it at inference time on real hardware."
-    ),
-    analogy=(
-        "Like training with dropout to handle inference variability, or "
-        "training with augmented data to handle test-time distribution "
-        "shift."
-    ),
-    example=(
-        "Qaithon's prepare_for_qat(noise_std=0.05) injects gaussian noise "
-        "of standard deviation 0.05 into every QuantumLinear forward during "
-        "model.train(), zero during model.eval()."
-    ),
-    rule_of_thumb=(
-        "noise_std = 0.05 matches typical small-circuit photonic hardware. "
-        "0.01 for high-fidelity simulators; 0.1 for noisy NISQ QPUs."
-    ),
-    also_called=("quantization-aware training",),
-))
-
-_add(GlossaryEntry(
     term="variational quantum circuit",
     short=(
         "A parameterized quantum circuit whose parameters are trained "
@@ -351,8 +327,8 @@ _add(GlossaryEntry(
         "Heron → 16 hours per step."
     ),
     rule_of_thumb=(
-        "Parameter-shift is only viable for tiny models. For LLMs, train "
-        "classically with QAT instead."
+        "Parameter-shift is only viable for tiny models. For larger ones, "
+        "train classically and use the genuine kernel for inference."
     ),
 ))
 
@@ -365,7 +341,7 @@ def glossary(term: str) -> GlossaryEntry:
 
     Args:
         term: Term to look up. ``"qubit"``, ``"pJ per MAC"``,
-            ``"fidelity"``, ``"qat"``, ``"mode"`` etc.
+            ``"fidelity"``, ``"mode"`` etc.
 
     Raises:
         KeyError: If the term is not in the glossary.
@@ -433,10 +409,10 @@ def _interpret(term: str, value: float) -> str:
         if value >= 0.99:
             return "Excellent — quantum output matches classical to within rounding."
         if value >= 0.95:
-            return "Acceptable — small degradation, well within QAT tolerance."
+            return "Acceptable — small degradation, fine for robust tasks like classification."
         if value >= 0.9:
-            return "Borderline — model may need fine-tuning at this noise level."
-        return "Too low — output is likely incoherent. Consider QAT or different backend."
+            return "Borderline — the output degrades noticeably at this noise level."
+        return "Too low — output is likely incoherent. Try a shallower circuit or another backend."
     if term in ("pj per mac", "energy_pj_per_mac"):
         if value <= 0.01:
             return "Excellent — order of magnitude better than GPU baseline."

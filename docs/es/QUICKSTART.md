@@ -67,5 +67,5 @@ qaithon benchmark --explain
 ## Próximos pasos
 
 - [Configuración](CONFIGURATION.md) — conectar QPUs cloud reales.
-- [Recetario](COOKBOOK.md) — fine-tuning, pipelines, QAT.
+- [Recetario](COOKBOOK.md) — objetivos, selección de backend, pipelines.
 - [Soporte de hardware](HARDWARE.md) — cada backend en detalle.

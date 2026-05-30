@@ -53,19 +53,12 @@ def train(
     steps: int = 1000,
     batch_size: int = 32,
     learning_rate: float = 3e-4,
-    noise_std: float = 0.0,
     target_hardware: str | None = None,
     device: str | torch.device | None = None,
     log_every: int = 100,
     seed: int = 0,
 ) -> TrainingResult:
     """Train ``model`` on ``dataset`` for ``steps`` optimizer iterations.
-
-    If ``noise_std > 0`` and ``model`` has been compiled by Qaithon, the
-    function enables Quantization-Aware Training: noise of the requested
-    magnitude is injected into every ``QuantumLinear`` forward during
-    training, and removed during evaluation. The trained weights end up
-    robust against quantum-hardware noise of similar magnitude.
 
     Args:
         model: Any ``nn.Module``. Typically a Qaithon-compiled toy
@@ -75,7 +68,6 @@ def train(
         steps: Number of optimizer steps.
         batch_size: Mini-batch size.
         learning_rate: Adam learning rate.
-        noise_std: QAT noise standard deviation. ``0`` disables QAT.
         target_hardware: Optional name of a hardware target (e.g.
             ``"IBM Heron"``, ``"IBM Starling"``). When set, the function
             **validates the model fits the target before training**, and
@@ -97,7 +89,7 @@ def train(
         >>> qaithon.compile(model, backends=("quandela.sim",),
         ...                 min_in_features=1, min_out_features=1)
         >>> ds = load_dataset("shakespeare", block_size=64)
-        >>> result = train(model, ds, steps=500, noise_std=0.05)  # doctest: +SKIP
+        >>> result = train(model, ds, steps=500)  # doctest: +SKIP
         >>> print(result.final_loss)  # doctest: +SKIP
     """
     if steps < 1:
@@ -132,11 +124,6 @@ def train(
     device_ = torch.device(_pick_device(device))
     logger.info("Training on device: %s", device_)
 
-    if noise_std > 0:
-        from qaithon.training import QATConfig, prepare_for_qat
-
-        prepare_for_qat(model, QATConfig(noise_std_training=noise_std, noise_std_eval=0.0))
-        logger.info("QAT enabled with noise_std=%.3f", noise_std)
 
     model.to(device_)
     model.train()

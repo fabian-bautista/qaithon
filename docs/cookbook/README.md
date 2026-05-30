@@ -11,9 +11,7 @@ know what you want.
    balanced, with rules of thumb.
 4. [Inspecting decisions](04_inspect_decisions.md) — what Qaithon picked
    and why, plus runtime tracing.
-5. [Fine-tuning](05_fine_tuning.md) — plain training, LoRA / peft,
-   Quantization-Aware Training.
-6. [Composing pipelines](06_compose_pipelines.md) — chaining compiled
+5. [Composing pipelines](06_compose_pipelines.md) — chaining compiled
    models.
 
 For internal design see [`docs/en/ARCHITECTURE.md`](../en/ARCHITECTURE.md).

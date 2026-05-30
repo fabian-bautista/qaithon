@@ -83,7 +83,6 @@ from qaithon import (  # noqa: F401
     pricing,
     streaming,
     tracing,
-    training,
 )
 
 # Genuine, trainable quantum / photonic layers (differentiable).
@@ -154,7 +153,6 @@ __all__ = [
     "pricing",
     "streaming",
     "tracing",
-    "training",
     # Logging helpers.
     "enable_default_logging",
     "get_logger",

@@ -34,6 +34,22 @@ def _has(name: str) -> bool:
         return False
 
 
+def braket_run_probs(device, full, q: int, shots: int):  # type: ignore[no-untyped-def]
+    """Apply ``full`` unitary to |0…0> on a Braket ``device``; return the
+    length-``2**q`` probability vector. Shared by every Braket gate backend so
+    the genuine matmul path is identical across SV1 and IonQ."""
+    import numpy as np
+    from braket.circuits import Circuit
+
+    circ = Circuit().unitary(matrix=np.asarray(full, dtype=complex), targets=list(range(q)))
+    counts = device.run(circ, shots=shots).result().measurement_counts
+    total = sum(counts.values())
+    probs = np.zeros(2**q)
+    for bits, ct in counts.items():
+        probs[int(bits, 2)] = ct / max(1, total)  # braket: qubit 0 is the leftmost bit
+    return probs
+
+
 _SV1_ARN = "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
 
 
@@ -114,6 +130,11 @@ class AWSBraketSV1Backend(RealHardwareBackendBase):
     def _get_device(self):  # type: ignore[no-untyped-def]
         if self._device is not None:
             return self._device
+        if self._device_arn == "local":  # free local simulator (testing, no AWS cost)
+            from braket.devices import LocalSimulator
+
+            self._device = LocalSimulator("braket_sv")
+            return self._device
         from braket.aws import AwsDevice, AwsSession
         import boto3
 
@@ -148,6 +169,21 @@ class AWSBraketSV1Backend(RealHardwareBackendBase):
         # SV1 is noiseless by design, so this should be near zero. Use a
         # small floor so the noise injection is not exactly zero.
         return max(0.001, noise_fraction)
+
+    def _execute_full_matmul(self, x, weight, bias=None):  # type: ignore[no-untyped-def]
+        """Genuine matmul on Braket SV1 — the same gate-based kernel as IBM,
+        run through the Braket SDK (see :func:`qaithon.kernels.genuine_qubit_matmul`)."""
+        from qaithon.kernels import genuine_qubit_matmul
+
+        device = self._get_device()
+        t0 = time.perf_counter()
+        y = genuine_qubit_matmul(
+            x, weight,
+            lambda full, q, shots: braket_run_probs(device, full, q, shots),
+            bias, shots=self._shots,
+        )
+        self._last_circuit_latency_us = (time.perf_counter() - t0) * 1e6
+        return y
 
 
 if _has("braket"):

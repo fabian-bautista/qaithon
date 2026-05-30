@@ -34,20 +34,22 @@ qaithon.compile(model, optimize_for="balanced")  # default
 qaithon.compile(model, backends=("quandela.perceval", "mock"))
 ```
 
-## Receta 4 — Toy transformer de punta a punta
+## Receta 4 — Lab de toy transformer (entrenar, luego inferencia genuina)
+
+El kernel genuino es solo de inferencia, así que entrená primero (autograd clásico)
+y luego compilá para inferencia genuina.
 
 ```python
 import qaithon
 from qaithon.lab import load_dataset, train, generate
 
+# 1. Entrená un toy transformer chico de la forma normal (diferenciable).
 model = qaithon.models.create_toy_transformer(dim=64, n_layers=2)
-qaithon.compile(model, backends=("quandela.sim",))
-
 ds = load_dataset("shakespeare", block_size=64)
-result = train(model, ds, steps=2000, batch_size=32,
-               noise_std=0.05,  # habilita QAT
-               log_every=200)
+train(model, ds, steps=2000, batch_size=32, log_every=200)
 
+# 2. Compilalo para correr inferencia en circuitos cuánticos/fotónicos genuinos.
+qaithon.compile(model, backends=("quandela.sim",))
 print(generate(model, "ROMEO:", max_new_tokens=100))
 ```
 
@@ -102,21 +104,6 @@ print(f"online={status.online} pending={status.pending_jobs}")
 if status.online:
     # seguro para correr
     ...
-```
-
-## Receta 9 — Fine-tune con HuggingFace Trainer
-
-```python
-import qaithon
-from qaithon.training import QATConfig, prepare_for_qat
-from transformers import Trainer, TrainingArguments
-
-model = ...   # tu modelo
-qaithon.compile(model, backends=("quandela.sim",))
-prepare_for_qat(model, QATConfig(noise_std_training=0.05))
-
-trainer = Trainer(model=model, args=TrainingArguments(...), train_dataset=...)
-trainer.train()
 ```
 
 ## Receta 10 — Métricas de inferencia para todo un generate()

@@ -167,3 +167,77 @@ def quantum_linear(
     if bias is not None:
         res = res + bias.detach().to(device=x.device, dtype=x.dtype)
     return res
+
+
+def _unitary_first_col(vec: np.ndarray) -> np.ndarray:
+    """A unitary whose first column equals the (normalized) ``vec`` — prepares a
+    state from |0...0>."""
+    vec = np.asarray(vec, dtype=complex)
+    mat = np.eye(len(vec), dtype=complex)
+    mat[:, 0] = vec
+    q, _ = np.linalg.qr(mat)
+    if np.vdot(q[:, 0], vec).real < 0:  # flip one column → still unitary
+        q[:, 0] = -q[:, 0]
+    return q
+
+
+def genuine_qubit_matmul(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    run_probs,
+    bias: torch.Tensor | None = None,
+    *,
+    shots: int = 2048,
+) -> torch.Tensor:
+    """Genuine qubit matmul on ANY gate-based platform, via sampling.
+
+    Platform-agnostic core shared by gate-based real-hardware backends (IBM, AWS
+    Braket, …): the weight is embedded in a unitary dilation, each input row is
+    amplitude-encoded by a prep unitary, the combined circuit is run, and the
+    output is reconstructed from the measured probabilities.
+
+    ``run_probs(full_unitary, n_qubits, shots)`` is the only platform-specific
+    piece: apply ``full_unitary`` to ``|0…0>``, measure, and return a
+    length-``2**n_qubits`` probability vector aligned to the unitary's basis
+    (index ``i`` = computational basis state ``|i>``, qubit 0 most significant).
+
+    Magnitudes are measured; signs are reconstructed from the ideal (readout
+    yields ``|amplitude|^2`` only) — the same limitation as every sampling backend.
+    """
+    Wn, xn, out_f, in_f = _prep(x, weight)
+    n = max(out_f, in_f)
+    dim = 2 * n
+    q = max(1, int(np.ceil(np.log2(dim))))
+    if q > QUANTUM_MAX_QUBITS:
+        raise IncompatibleHardwareError(
+            reason=(
+                f"Quantum matmul: layer dim {n} needs {q} qubits, beyond this "
+                f"machine's budget of {QUANTUM_MAX_QUBITS}."
+            ),
+            recommendations=[f"Use a layer with dim ≤ {2**(QUANTUM_MAX_QUBITS - 1)}."],
+        )
+    u, scale, _ = _dilate(Wn)
+    pad = 2**q
+    upad = np.eye(pad, dtype=complex)
+    upad[:dim, :dim] = u
+
+    flat = xn.reshape(-1, in_f)
+    out = np.zeros((flat.shape[0], out_f))
+    for r, xv in enumerate(flat):
+        amp = np.zeros(pad)
+        amp[:in_f] = xv
+        nrm = float(np.linalg.norm(amp))
+        if nrm < 1e-12:
+            continue
+        amp = amp / nrm
+        full = upad @ _unitary_first_col(amp)   # prep (|0>→amp) then dilation
+        probs = np.asarray(run_probs(full, q, shots), dtype=float)
+        ideal = full[:, 0]                        # = upad @ amp
+        out[r] = np.sign(ideal[:out_f].real) * np.sqrt(probs[:out_f]) * scale * nrm
+
+    res = torch.from_numpy(out).to(device=x.device, dtype=x.dtype).reshape(
+        *x.shape[:-1], out_f
+    )
+    if bias is not None:
+        res = res + bias.detach().to(device=x.device, dtype=x.dtype)
+    return res

@@ -180,7 +180,6 @@ Each is reachable as `qaithon.<name>`.
 - **`qaithon.pricing`** — `estimate_cost_usd("backend.name", n_shots=…)`.
 - **`qaithon.streaming`** — HF `TextStreamer` compatibility.
 - **`qaithon.tracing`** — `with tracing.trace() as t: …`.
-- **`qaithon.training`** — `QATConfig`, `prepare_for_qat(...)`.
 
 ---
 
@@ -227,6 +226,59 @@ Whole-model qubit + depth budget. Use `.pretty()` for human output,
 
 ---
 
+## Genuine quantum & photonic layers
+
+Trainable `nn.Module`s whose forward pass runs on a real quantum/photonic
+algorithm. Use them like any PyTorch layer.
+
+### `qaithon.PhotonicLayer(in_features, out_features, *, photons=1, target="Quandela Belenos", on_hardware=False)`
+
+A photonic layer (Perceval/MerLin) — differentiable, trains with autograd.
+
+### `qaithon.QuantumLayer(in_features, out_features, *, var_layers=2, target="IBM Heron", on_hardware=False, device="default.qubit")`
+
+A qubit layer (PennyLane): amplitude-encode → variational circuit → readout. Pass
+`device="qiskit.remote"` to run on a real QPU.
+
+### `qaithon.ReuploadingClassifier(in_features, n_classes, *, n_qubits=5, layers=6, device="default.qubit")`
+
+A shallow, NISQ-friendly quantum-native classifier (angle encoding + data
+re-uploading). Verified on real IBM hardware (10-class Digits, 5 qubits, ~80%).
+
+```python
+import qaithon, torch
+clf = qaithon.ReuploadingClassifier(in_features=10, n_classes=10)
+logits = clf(torch.randn(32, 10))   # train like any nn.Module
+```
+
+---
+
+## Real-hardware execution
+
+Every real-hardware backend takes a `mode`:
+
+- `mode="profile"` (default) — no real circuits; uses the declared cost model. Free.
+- `mode="calibrate"` — fires one small calibration circuit; returns real telemetry.
+- `mode="execute"` — runs the **genuine matmul** as a real circuit on the QPU.
+
+```python
+from qaithon.backends.ibm_heron import IBMHeronBackend
+from qaithon.backends.quandela_belenos import QuandelaBelenosBackend
+
+# Genuine matmul on a real IBM QPU, with software error mitigation:
+ibm = IBMHeronBackend(mode="execute", shots=2048, mitigation=True)
+y = ibm.matmul(x, weight)             # ibm.last_execute → fidelity, gates, latency
+
+# Genuine photonic matmul on Quandela Belenos (or platform_name="local:slos"):
+photonic = QuandelaBelenosBackend(mode="execute", platform_name="qpu:belenos")
+y = photonic.matmul(x, weight)        # photonic.last_execute → modes, fidelity
+```
+
+`mitigation=True` (IBM) adds higher transpiler optimization + dynamical decoupling
++ measurement twirling. `execute` mode consumes real quota / credits.
+
+---
+
 ## Backend interface (advanced)
 
 ```python
@@ -253,13 +305,6 @@ register_backend("vendor.mychip", MyBackend)
 import qaithon
 backend = qaithon.backends.get_backend("ibm.aer")
 cached = qaithon.cache.cached(backend)
-```
-
-### Training with QAT noise
-
-```python
-from qaithon.training import QATConfig, prepare_for_qat
-prepare_for_qat(model, QATConfig(noise_std_training=0.05))
 ```
 
 ### Cost estimation before running on real QPU

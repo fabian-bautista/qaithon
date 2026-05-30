@@ -201,6 +201,24 @@ class AWSBraketQuEraBackend(RealHardwareBackendBase):
     def _noise_strength_proxy(self) -> float:
         return 0.005
 
+    def _execute_full_matmul(self, x, weight, bias=None):  # type: ignore[no-untyped-def]
+        """QuEra is ANALOG (Hamiltonian evolution), not gate-based — a gate-circuit
+        matmul cannot run on it. Raise an honest incompatibility (not a silent
+        fallback) so the limitation is explicit, not a forgotten connection."""
+        from qaithon.exceptions import IncompatibleHardwareError
+
+        raise IncompatibleHardwareError(
+            reason=(
+                "QuEra Aquila is an analog neutral-atom device (Rydberg Hamiltonian "
+                "evolution), not gate-based — it cannot execute a gate-circuit matmul."
+            ),
+            recommendations=[
+                "Use a gate-based backend for genuine matmul: ibm.heron, "
+                "aws.braket.ionq, or aws.braket.sv1.",
+                "Use aws.braket.quera in mode='calibrate' for analog telemetry only.",
+            ],
+        )
+
 
 # ---------------------------------------------------------------------------
 # IonQ Forte — trapped-ion QPU
@@ -296,6 +314,23 @@ class AWSBraketIonQBackend(RealHardwareBackendBase):
         ideal = {"000", "111"}
         unexpected = sum(c for s, c in counts.items() if s not in ideal)
         return max(0.005, unexpected / max(1, total))
+
+    def _execute_full_matmul(self, x, weight, bias=None):  # type: ignore[no-untyped-def]
+        """Genuine matmul on IonQ Forte — the same gate-based kernel as IBM and
+        SV1, run through the Braket SDK (trapped-ion, all-to-all connectivity).
+        Pay-per-shot: this consumes real AWS credits."""
+        from qaithon.backends.aws_braket_sv1 import braket_run_probs
+        from qaithon.kernels import genuine_qubit_matmul
+
+        device = self._get_device()
+        t0 = time.perf_counter()
+        y = genuine_qubit_matmul(
+            x, weight,
+            lambda full, q, shots: braket_run_probs(device, full, q, shots),
+            bias, shots=self._shots,
+        )
+        self._last_circuit_latency_us = (time.perf_counter() - t0) * 1e6
+        return y
 
 
 if _has("braket"):
